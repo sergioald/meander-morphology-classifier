@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 - Synthetic data and evaluation utilities
+
+- Added Kinoshita synthetic single-bend generation utilities.
+- Added scripts for synthetic bend generation, Kinoshita parameter histograms and autoencoder reconstruction evaluation.
+- Added synthetic-data documentation and lightweight tests.
+- Updated package metadata to use an SPDX license string.
+
 ## 0.1.2 - Endpoint and isolated-spectrum corrections
 
 - Added endpoint handling modes for single-bend extraction: `ignore`, `auto`, and `include`.

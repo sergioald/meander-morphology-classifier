@@ -55,6 +55,25 @@ streamlit run app/streamlit_app.py
 
 The GUI lets a user upload a river centerline file, preview the planform, compute curvature, detect inflection-point bends, generate CWT spectra and, when the model is available, encode/classify the bends.
 
+### Workflow D — generate synthetic Kinoshita bends
+
+```bash
+python scripts/generate_synthetic_bends.py --output outputs/synthetic_bends --n-bends 100 --save-png
+python scripts/plot_kinoshita_parameters.py --output outputs/kinoshita_parameters
+```
+
+The synthetic generator is useful for lightweight examples, model checks and future retraining experiments. See `docs/synthetic_data.md`.
+
+### Autoencoder reconstruction evaluation
+
+```bash
+python scripts/evaluate_autoencoder.py \
+  --model models/Autoencoder_Meander_Bend.h5 \
+  --spectra outputs/synthetic_bends/spectra.npy \
+  --output outputs/autoencoder_evaluation
+```
+
+
 ## Input data format
 
 The simplest input is a CSV file with columns:
@@ -82,7 +101,7 @@ src/meander_morphology/   reusable package code
 scripts/                  command-line workflows
 app/                      Streamlit GUI
 examples/                 small synthetic/example data
-docs/                     documentation
+docs/                     documentation, including synthetic data notes
 tests/                    unit tests
 models/                   location for downloaded model files
 ```
