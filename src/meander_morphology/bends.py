@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import Literal
 
 import numpy as np
 
@@ -8,9 +9,12 @@ from .curvature import compute_centerline_curvature, detect_apex_indices, detect
 from .geometry import cumulative_distance, maturity_index, normalise_bend, resample_polyline, sinuosity
 
 
+EndpointMode = Literal["ignore", "auto", "include"]
+
+
 @dataclass(slots=True)
 class Bend:
-    """Single meander bend bounded by consecutive true inflection points."""
+    """Single meander bend bounded by consecutive curvature inflection points."""
 
     bend_id: int
     start_index: int
@@ -20,17 +24,26 @@ class Bend:
     y: np.ndarray
     s: np.ndarray
     curvature: np.ndarray
+    raw_x: np.ndarray
+    raw_y: np.ndarray
+    raw_s: np.ndarray
     width: float | None
     sinuosity: float
     maturity_index: float
     chord_length: float
     chord_widths: float | None
-    is_edge_bend: bool = False
+    uses_endpoint_boundary: bool = False
+
+    @property
+    def is_edge_bend(self) -> bool:
+        """Backward-compatible flag for intervals touching the file boundary."""
+        return self.uses_endpoint_boundary
 
     def metadata(self) -> dict:
         row = asdict(self)
-        for key in ["x", "y", "s", "curvature"]:
+        for key in ["x", "y", "s", "curvature", "raw_x", "raw_y", "raw_s"]:
             row.pop(key, None)
+        row["is_edge_bend"] = row.pop("uses_endpoint_boundary")
         return row
 
 
@@ -44,6 +57,50 @@ def _width_on_resampled_centerline(
     return np.interp(s_resampled, original_s, np.asarray(width, dtype=float))
 
 
+def _endpoint_is_plausible_inflection(
+    curvature: np.ndarray,
+    index: int,
+    *,
+    tolerance_fraction: float,
+) -> bool:
+    """Return True when an endpoint curvature is small relative to the reach."""
+    max_abs = float(np.nanmax(np.abs(curvature)))
+    if not np.isfinite(max_abs) or max_abs == 0:
+        return False
+    return abs(float(curvature[index])) <= tolerance_fraction * max_abs
+
+
+def _build_boundaries(
+    curvature: np.ndarray,
+    true_inflections: np.ndarray,
+    *,
+    endpoint_mode: EndpointMode,
+    endpoint_curvature_tolerance: float,
+    include_edge_bends: bool,
+) -> np.ndarray:
+    """Build extraction boundaries without thinning interior inflections."""
+    if include_edge_bends:
+        endpoint_mode = "include"
+
+    points = list(np.asarray(true_inflections, dtype=int))
+    if endpoint_mode not in {"ignore", "auto", "include"}:
+        raise ValueError("endpoint_mode must be one of: ignore, auto, include")
+
+    if endpoint_mode == "include":
+        points = [0, *points, len(curvature) - 1]
+    elif endpoint_mode == "auto":
+        if _endpoint_is_plausible_inflection(
+            curvature, 0, tolerance_fraction=endpoint_curvature_tolerance
+        ):
+            points = [0, *points]
+        if _endpoint_is_plausible_inflection(
+            curvature, len(curvature) - 1, tolerance_fraction=endpoint_curvature_tolerance
+        ):
+            points = [*points, len(curvature) - 1]
+
+    return np.unique(np.asarray(points, dtype=int))
+
+
 def extract_single_bends(
     x: np.ndarray,
     y: np.ndarray,
@@ -55,39 +112,25 @@ def extract_single_bends(
     min_abs_curvature: float | None = None,
     bend_points: int = 201,
     include_edge_bends: bool = False,
+    endpoint_mode: EndpointMode = "auto",
+    endpoint_curvature_tolerance: float = 0.10,
 ) -> list[Bend]:
     """Extract normalized single bends from a river centerline.
 
-    Single-bend mode must not merge neighbouring bends. The method therefore
-    cuts the centerline at **consecutive curvature sign-change inflection
-    points**. Short or nearly flat candidates are discarded after extraction
-    using bend-level filters.
+    Interior bends are always cut at consecutive curvature sign-change
+    inflection points. Interior inflection points are not removed by spacing,
+    because doing so can merge neighbouring single bends into a compound unit.
 
-    Parameters
-    ----------
-    x, y:
-        Centerline coordinates.
-    width:
-        Constant width or width values along the original centerline.
-    points_per_width:
-        Resampling density used before curvature estimation.
-    min_spacing_widths:
-        Backward-compatible alias for ``min_chord_widths``. Older versions used
-        this value to remove inflection points before extraction, which could
-        merge neighbouring single bends into compound-looking bends.
-    min_chord_widths:
-        Minimum end-to-end chord length, expressed in channel widths, required
-        to retain a bend. The WRR workflow used a 5--8 width range for removing
-        spurious short bends; this filter is applied to candidate bends rather
-        than to inflection points. Set to ``None`` to disable.
-    min_abs_curvature:
-        Optional minimum absolute apex curvature.
-    bend_points:
-        Number of points in each normalized bend.
-    include_edge_bends:
-        Include partial first/last reaches bounded by a file endpoint and one
-        true inflection point. Default is false because these are not complete
-        single-lobe bends.
+    ``endpoint_mode`` controls how file endpoints are handled:
+
+    - ``"ignore"``: only true interior sign-change inflections are used.
+    - ``"auto"``: an endpoint is used only when its absolute curvature is small
+      relative to the reach, making it a plausible boundary inflection.
+    - ``"include"``: endpoints are always used, which may include partial edge
+      bends.
+
+    ``include_edge_bends=True`` is kept for backwards compatibility and is
+    equivalent to ``endpoint_mode="include"``.
     """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
@@ -112,17 +155,14 @@ def extract_single_bends(
 
     s, xs, ys, curv = compute_centerline_curvature(x, y, resample_points=resample_points)
 
-    # Detect true sign-change inflections first. Do not thin these points by
-    # distance, because thinning removes interior inflections and creates
-    # compound-looking units.
     true_inflections = detect_inflection_points(curv, s=s, min_spacing=None, include_endpoints=False)
-    if len(true_inflections) < 2 and not include_edge_bends:
-        return []
-
-    if include_edge_bends:
-        boundaries = np.unique(np.concatenate([[0], true_inflections, [len(curv) - 1]])).astype(int)
-    else:
-        boundaries = true_inflections.astype(int)
+    boundaries = _build_boundaries(
+        curv,
+        true_inflections,
+        endpoint_mode=endpoint_mode,
+        endpoint_curvature_tolerance=endpoint_curvature_tolerance,
+        include_edge_bends=include_edge_bends,
+    )
 
     if len(boundaries) < 2:
         return []
@@ -138,7 +178,7 @@ def extract_single_bends(
         if end <= start + 2:
             continue
 
-        is_edge = bool(start == 0 or end == len(curv) - 1)
+        uses_endpoint = bool(start == 0 or end == len(curv) - 1)
         bend_width = mean_width
         if width_resampled is not None:
             bend_width = float(np.nanmean(width_resampled[start:end + 1]))
@@ -174,12 +214,15 @@ def extract_single_bends(
                 y=norm_y,
                 s=norm_s,
                 curvature=norm_c,
+                raw_x=seg_x.copy(),
+                raw_y=seg_y.copy(),
+                raw_s=seg_s.copy(),
                 width=bend_width,
                 sinuosity=sinuosity(norm_x, norm_y),
                 maturity_index=maturity_index(norm_x, norm_y),
                 chord_length=chord,
                 chord_widths=chord_widths,
-                is_edge_bend=is_edge,
+                uses_endpoint_boundary=uses_endpoint,
             )
         )
     return bends

@@ -14,6 +14,7 @@ def main() -> None:
     parser.add_argument("--model", type=Path, default=None)
     parser.add_argument("--width", type=float, default=None)
     parser.add_argument("--min-chord-widths", type=float, default=0.0)
+    parser.add_argument("--endpoint-mode", choices=["ignore", "auto", "include"], default="auto")
     parser.add_argument("--include-edge-bends", action="store_true")
     args = parser.parse_args()
 
@@ -26,6 +27,8 @@ def main() -> None:
         str(args.output / "bends"),
         "--min-chord-widths",
         str(args.min_chord_widths),
+        "--endpoint-mode",
+        args.endpoint_mode,
     ]
     if args.include_edge_bends:
         extract_cmd.append("--include-edge-bends")

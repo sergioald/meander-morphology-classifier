@@ -18,8 +18,13 @@ def extract_bends_and_spectra(
     image_size: int = 64,
     min_chord_widths: float | None = None,
     include_edge_bends: bool = False,
+    endpoint_mode: str = "auto",
+    endpoint_curvature_tolerance: float = 0.10,
+    cwt_pad: bool = True,
+    cwt_pad_fraction: float = 0.5,
+    cwt_max_scale_fraction: float = 0.50,
 ) -> tuple[list, np.ndarray]:
-    """Run the centerline → single bends → CWT spectra workflow."""
+    """Run the centerline → single bends → isolated CWT spectra workflow."""
     output_dir = Path(output_dir)
     spectra_dir = output_dir / "spectra"
     spectra_dir.mkdir(parents=True, exist_ok=True)
@@ -32,11 +37,19 @@ def extract_bends_and_spectra(
         width=width_source,
         min_chord_widths=min_chord_widths,
         include_edge_bends=include_edge_bends,
+        endpoint_mode=endpoint_mode,
+        endpoint_curvature_tolerance=endpoint_curvature_tolerance,
     )
 
     spectra = []
     for bend in bends:
-        image = spectrum_image(bend.curvature, image_size=image_size)
+        image = spectrum_image(
+            bend.curvature,
+            image_size=image_size,
+            pad=cwt_pad,
+            pad_fraction=cwt_pad_fraction,
+            max_scale_fraction=cwt_max_scale_fraction,
+        )
         spectra.append(image)
         save_spectrum_image(str(spectra_dir / f"bend_{bend.bend_id:04d}.png"), image)
 

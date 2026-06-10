@@ -12,11 +12,7 @@ def mexican_hat(points: np.ndarray, scale: float) -> np.ndarray:
 
 
 def cwt_mexican_hat(signal: np.ndarray, scales: np.ndarray) -> np.ndarray:
-    """Compute a simple Mexican-hat CWT using convolution.
-
-    PyWavelets can be installed for production workflows, but this lightweight
-    implementation keeps the core package testable without optional dependencies.
-    """
+    """Compute a Mexican-hat CWT using convolution."""
     signal = np.asarray(signal, dtype=float)
     signal = signal - np.nanmean(signal)
     coeffs = []
@@ -33,10 +29,49 @@ def cwt_mexican_hat(signal: np.ndarray, scales: np.ndarray) -> np.ndarray:
     return np.asarray(coeffs)
 
 
-def cwt_energy(curvature: np.ndarray, *, n_scales: int = 200) -> tuple[np.ndarray, np.ndarray]:
-    """Return CWT energy and scales for a curvature signal."""
-    scales = np.linspace(1.0, max(2.0, len(curvature) / 2.0), n_scales)
-    coeffs = cwt_mexican_hat(curvature, scales)
+def mirror_pad_signal(signal: np.ndarray, *, pad_fraction: float = 0.5) -> tuple[np.ndarray, slice]:
+    """Mirror-pad a one-dimensional bend signal and return the center crop slice.
+
+    The CWT is computed on the padded signal, then cropped back to the original
+    single bend. This reduces cone-of-influence edge artefacts without using
+    neighbouring bends.
+    """
+    signal = np.asarray(signal, dtype=float)
+    n = len(signal)
+    if n < 4 or pad_fraction <= 0:
+        return signal.copy(), slice(0, n)
+    pad = max(1, min(n - 1, int(round(n * pad_fraction))))
+    left = signal[1:pad + 1][::-1]
+    right = signal[-pad - 1:-1][::-1]
+    padded = np.concatenate([left, signal, right])
+    return padded, slice(pad, pad + n)
+
+
+def cwt_energy(
+    curvature: np.ndarray,
+    *,
+    n_scales: int = 200,
+    max_scale_fraction: float = 0.50,
+    pad: bool = True,
+    pad_fraction: float = 0.5,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return CWT energy and scales for one isolated bend.
+
+    Scales are based on the original bend length, not the padded length. The
+    returned energy is cropped to the original bend extent when ``pad=True``.
+    """
+    curvature = np.asarray(curvature, dtype=float)
+    n = len(curvature)
+    if n < 4:
+        raise ValueError("curvature must contain at least four points")
+    max_scale = max(2.0, n * float(max_scale_fraction))
+    scales = np.linspace(1.0, max_scale, n_scales)
+
+    if pad:
+        work_signal, crop = mirror_pad_signal(curvature, pad_fraction=pad_fraction)
+        coeffs = cwt_mexican_hat(work_signal, scales)[:, crop]
+    else:
+        coeffs = cwt_mexican_hat(curvature, scales)
     return coeffs**2, scales
 
 
@@ -46,9 +81,23 @@ def spectrum_image(
     image_size: int = 64,
     n_scales: int = 200,
     normalize: bool = True,
+    pad: bool = True,
+    pad_fraction: float = 0.5,
+    max_scale_fraction: float = 0.50,
 ) -> np.ndarray:
-    """Convert curvature into a square grayscale CWT-energy image."""
-    energy, _ = cwt_energy(curvature, n_scales=n_scales)
+    """Convert one single-bend curvature signal into a square CWT-energy image.
+
+    The default mirror-padding is used only to reduce boundary artefacts. The
+    saved image is cropped back to the selected single bend, so adjacent bends
+    are not part of the spectrum.
+    """
+    energy, _ = cwt_energy(
+        curvature,
+        n_scales=n_scales,
+        max_scale_fraction=max_scale_fraction,
+        pad=pad,
+        pad_fraction=pad_fraction,
+    )
     image = np.asarray(energy, dtype=float)
     if normalize:
         max_value = float(np.nanmax(image))

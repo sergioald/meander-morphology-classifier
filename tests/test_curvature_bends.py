@@ -31,17 +31,24 @@ def test_extract_single_bends():
     bends = extract_single_bends(x, y, width=width, min_chord_widths=2.0)
     assert len(bends) >= 3
     assert bends[0].x.shape == (201,)
+    assert bends[0].raw_x.ndim == 1
     assert bends[0].sinuosity >= 1.0
     assert bends[0].chord_widths is not None
 
 
 def test_extraction_does_not_merge_by_inflection_spacing():
     x, y, width = compound_like_centerline()
-    bends = extract_single_bends(x, y, width=width, min_chord_widths=0.0)
+    bends = extract_single_bends(x, y, width=width, min_chord_widths=0.0, endpoint_mode="ignore")
     boundaries = [(bend.start_index, bend.end_index) for bend in bends]
     assert len(boundaries) >= 4
-    # Consecutive extracted bends should share endpoints. This confirms the
-    # extractor is cutting at consecutive inflections instead of skipping
-    # interior inflections and creating compound-looking units.
     for previous, current in zip(bends[:-1], bends[1:]):
         assert previous.end_index == current.start_index
+
+
+def test_endpoint_modes_change_boundary_candidates():
+    x, y, width = synthetic_centerline()
+    strict = extract_single_bends(x, y, width=width, endpoint_mode="ignore", min_chord_widths=0.0)
+    auto = extract_single_bends(x, y, width=width, endpoint_mode="auto", min_chord_widths=0.0)
+    include = extract_single_bends(x, y, width=width, endpoint_mode="include", min_chord_widths=0.0)
+    assert len(strict) <= len(auto) <= len(include)
+    assert any(b.uses_endpoint_boundary for b in include)
