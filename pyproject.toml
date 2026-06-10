@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meander-morphology-classifier"
+version = "0.1.0"
+description = "Curvature-based meander bend detection and classification using CWT spectra, autoencoders and clustering."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Sergio Lopez Dubon" }]
+keywords = [
+  "meandering rivers",
+  "curvature",
+  "wavelet transform",
+  "autoencoder",
+  "geomorphology",
+  "machine learning",
+]
+dependencies = [
+  "numpy>=1.23",
+  "scipy>=1.10",
+  "pandas>=1.5",
+  "matplotlib>=3.7",
+  "scikit-learn>=1.2",
+  "scikit-image>=0.20",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+deep-learning = ["tensorflow>=2.13"]
+wavelets = ["PyWavelets>=1.5"]
+gui = ["streamlit>=1.30"]
+dev = ["pytest>=7.4", "ruff>=0.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
