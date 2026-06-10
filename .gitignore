@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local data and generated outputs
+data/
+outputs/
+reports/
+
+# Large/generated scientific data
+*.npy
+*.npz
+*.csv.tmp
+*.wav
+*.tif
+*.tiff
+*.geojson
+*.gpkg
+*.shp
+*.dbf
+*.shx
+*.prj
+*.joblib
+*.pkl
+
+# Model files downloaded locally
+models/*.h5
+models/*.keras
+models/*.ckpt
+models/*.pb
+!models/README.md
+
+# Editor/OS files
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
