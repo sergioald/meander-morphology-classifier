@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Curvature-based meander bend detection and classification using CWT spectra, autoencoders and clustering."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "Sergio Lopez Dubon" }]
 keywords = [
   "meandering rivers",
