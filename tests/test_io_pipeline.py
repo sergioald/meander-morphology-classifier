@@ -22,7 +22,7 @@ def test_extract_pipeline(tmp_path):
         f.write("x,y,width\n")
         for xi, yi in zip(x, y):
             f.write(f"{xi},{yi},40\n")
-    bends, spectra = extract_bends_and_spectra(path, tmp_path / "out")
+    bends, spectra = extract_bends_and_spectra(path, tmp_path / "out", min_chord_widths=2.0)
     assert len(bends) > 0
     assert spectra.shape[1:] == (64, 64)
     assert (tmp_path / "out" / "bend_summary.csv").exists()

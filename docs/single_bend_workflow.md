@@ -13,3 +13,12 @@ The single-bend workflow follows the Water Resources Research paper:
 9. Cluster latent coordinates into bend-shape groups.
 
 The publication interprets the three main groups as symmetric, downstream-skewed and upstream-skewed bends. In this cleaned codebase, cluster numbering is kept explicit because K-means label ordering can change between datasets.
+
+
+## Single-bend extraction boundary rule
+
+The single-bend workflow cuts the centerline at consecutive curvature sign-change inflection points.
+Short candidates are filtered after extraction using their chord length expressed in channel widths.
+This avoids merging neighbouring bends into compound-looking units.
+
+The default `--min-chord-widths 0` keeps every consecutive inflection-point candidate. Use `--min-chord-widths 5` to follow the publication-style length filter.

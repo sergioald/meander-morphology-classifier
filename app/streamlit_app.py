@@ -17,6 +17,18 @@ st.caption("Curvature-based single-bend extraction and CWT-spectrum analysis")
 
 uploaded = st.file_uploader("Upload centerline CSV/TXT/DAT", type=["csv", "txt", "dat"])
 width = st.number_input("Fallback channel width", min_value=0.0, value=100.0, step=10.0)
+min_chord_widths = st.number_input(
+    "Minimum bend chord length / width",
+    min_value=0.0,
+    value=0.0,
+    step=0.5,
+    help="Use 5--8 for publication-style filtering. Use 0 to keep all consecutive inflection-point bends.",
+)
+include_edge_bends = st.checkbox(
+    "Include edge partial bends",
+    value=False,
+    help="Edge bends are bounded by file endpoints, not two true inflection points.",
+)
 
 if uploaded is not None:
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded.name).suffix) as tmp:
@@ -25,15 +37,23 @@ if uploaded is not None:
 
     x, y, width_values = read_centerline_table(tmp_path)
     width_source = width_values if width_values is not None else width
-    bends = extract_single_bends(x, y, width=width_source)
+    min_filter = None if min_chord_widths <= 0 else float(min_chord_widths)
+    bends = extract_single_bends(
+        x,
+        y,
+        width=width_source,
+        min_chord_widths=min_filter,
+        include_edge_bends=include_edge_bends,
+    )
 
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Centerline")
         st.line_chart(pd.DataFrame({"x": x, "y": y}).set_index("x"))
     with col2:
-        st.subheader("Detected bends")
+        st.subheader("Detected single bends")
         st.write(f"Detected **{len(bends)}** candidate single bends.")
+        st.caption("Each retained bend is bounded by consecutive curvature sign-change inflection points.")
         st.dataframe(pd.DataFrame([bend.metadata() for bend in bends]))
 
     if bends:

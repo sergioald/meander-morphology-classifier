@@ -13,6 +13,8 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--model", type=Path, default=None)
     parser.add_argument("--width", type=float, default=None)
+    parser.add_argument("--min-chord-widths", type=float, default=0.0)
+    parser.add_argument("--include-edge-bends", action="store_true")
     args = parser.parse_args()
 
     extract_cmd = [
@@ -22,7 +24,11 @@ def main() -> None:
         str(args.input),
         "--output",
         str(args.output / "bends"),
+        "--min-chord-widths",
+        str(args.min_chord_widths),
     ]
+    if args.include_edge_bends:
+        extract_cmd.append("--include-edge-bends")
     if args.width is not None:
         extract_cmd.extend(["--width", str(args.width), "--width-column", ""])
     subprocess.check_call(extract_cmd)
