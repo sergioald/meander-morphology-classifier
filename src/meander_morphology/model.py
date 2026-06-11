@@ -80,13 +80,150 @@ def _legacy_custom_objects(tf):
     }
 
 
-def load_autoencoder(model_path: str | Path):
-    """Load the Keras autoencoder model lazily.
 
-    The Zenodo H5 model may contain ``groups=1`` in ``Conv2DTranspose`` layer
-    metadata. That is harmless, but some TensorFlow/Keras versions reject it.
-    This loader first tries the normal path, then falls back to a sanitized
-    temporary H5 copy with the default ``groups`` metadata removed.
+def build_public_autoencoder_architecture(*, latent_dim: int = 2, nested: bool = True):
+    """Build the published single-bend autoencoder architecture.
+
+    This is a compatibility fallback for the Zenodo legacy H5 file. Newer
+    Keras versions can fail when deserializing the old Functional model graph
+    (for example with ``list index out of range``). In that case we reconstruct
+    the architecture used by the paper scripts and load the weights from the H5
+    file without reading the saved model graph.
+    """
+    try:
+        import tensorflow as tf
+    except ImportError as exc:
+        raise ImportError("TensorFlow is required to build the autoencoder architecture.") from exc
+
+    keras = tf.keras
+    layers = tf.keras.layers
+    input_shape = (64, 64, 1)
+    base_depth = 40
+    encoded_size = int(latent_dim)
+    vd = [6, 5, 4, 4, 3, 2, 3, 2, 2, 5, 1]
+    ve = [10, 5, 4, 5, 4, 3, 4, 3, 4, 3, 1]
+
+    def make_encoder(name: str = "encoder"):
+        return keras.Sequential(
+            [
+                layers.InputLayer(shape=input_shape),
+                layers.Conv2D(ve[0] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[1] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[2] * base_depth, 5, strides=2, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[3] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[4] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[5] * encoded_size, 5, strides=2, padding="valid", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[6] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[7] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[8] * base_depth, 5, strides=2, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[9] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(ve[10] * encoded_size, 7, strides=1, padding="valid", activation="linear"),
+                layers.Flatten(),
+            ],
+            name=name,
+        )
+
+    def make_decoder(name: str = "decoder"):
+        return keras.Sequential(
+            [
+                layers.InputLayer(shape=(encoded_size,)),
+                layers.Reshape((1, 1, encoded_size)),
+                layers.Conv2DTranspose(vd[0] * base_depth, 7, strides=1, padding="valid", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[1] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[2] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[3] * base_depth, 3, strides=2, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[4] * base_depth, 3, strides=1, padding="valid", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[5] * base_depth, 5, strides=2, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[6] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[7] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[8] * base_depth, 5, strides=2, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2DTranspose(vd[0] * base_depth, 3, strides=1, padding="same", activation=tf.nn.leaky_relu),
+                layers.BatchNormalization(),
+                layers.Conv2D(filters=vd[10], kernel_size=5, strides=1, padding="same", activation="sigmoid"),
+            ],
+            name=name,
+        )
+
+    if nested:
+        encoder = make_encoder("encoder")
+        decoder = make_decoder("decoder")
+        inputs = keras.Input(shape=input_shape, name="image")
+        latent = encoder(inputs)
+        outputs = decoder(latent)
+        model = keras.Model(inputs=inputs, outputs=outputs, name="meander_autoencoder")
+        model._meander_encoder = encoder  # used by build_encoder_from_autoencoder
+        return model
+
+    inputs = keras.Input(shape=input_shape, name="image")
+    x = inputs
+    encoder_layers = make_encoder("encoder_flat").layers
+    for layer in encoder_layers:
+        x = layer(x)
+    latent = x
+    encoder_model = keras.Model(inputs=inputs, outputs=latent, name="encoder")
+
+    x = latent
+    decoder_layers = make_decoder("decoder_flat").layers
+    for layer in decoder_layers:
+        x = layer(x)
+    model = keras.Model(inputs=inputs, outputs=x, name="meander_autoencoder")
+    model._meander_encoder = encoder_model
+    return model
+
+
+def _try_load_weights_into_reconstructed_model(model_path: Path, *, latent_dim: int = 2):
+    """Rebuild the published architecture and load H5 weights without model config."""
+    errors: list[str] = []
+    for nested in (True, False):
+        model = build_public_autoencoder_architecture(latent_dim=latent_dim, nested=nested)
+        try:
+            model.load_weights(str(model_path))
+            return model
+        except Exception as exc:
+            errors.append(f"reconstructed {'nested' if nested else 'flat'} load_weights failed: {exc}")
+        # Name-based loading is a last resort for legacy H5 files. It may be
+        # unavailable in some Keras versions, so keep it optional.
+        try:
+            model.load_weights(str(model_path), by_name=True, skip_mismatch=False)
+            return model
+        except TypeError:
+            pass
+        except Exception as exc:
+            errors.append(f"reconstructed {'nested' if nested else 'flat'} by-name load failed: {exc}")
+    raise RuntimeError("; ".join(errors))
+
+
+def load_autoencoder(model_path: str | Path):
+    """Load the Keras autoencoder model lazily and robustly.
+
+    The Zenodo model is a legacy H5 full-model file. Current Keras versions may
+    fail in two different ways: they may reject legacy ``groups=1`` metadata, or
+    they may fail to deserialize the old Functional graph with ``list index out
+    of range``. This function therefore tries, in order:
+
+    1. normal Keras ``load_model``;
+    2. a sanitized temporary H5 copy with default ``groups=1`` removed;
+    3. reconstructing the published architecture in code and loading weights
+       from the H5 file without using its saved graph configuration.
     """
     try:
         import tensorflow as tf
@@ -97,7 +234,11 @@ def load_autoencoder(model_path: str | Path):
         ) from exc
 
     model_path = Path(model_path)
+    if not model_path.exists():
+        raise FileNotFoundError(model_path)
+
     custom_objects = _legacy_custom_objects(tf)
+    errors: list[str] = []
 
     try:
         return tf.keras.models.load_model(
@@ -105,34 +246,39 @@ def load_autoencoder(model_path: str | Path):
             compile=False,
             custom_objects=custom_objects,
         )
-    except Exception as first_error:
-        message = str(first_error)
-        should_retry = "groups" in message or "Conv2DTranspose" in message
-        if not should_retry:
-            raise
+    except Exception as exc:
+        errors.append(f"normal load_model failed: {exc}")
 
-        repaired_path: Path | None = None
+    repaired_path: Path | None = None
+    try:
+        repaired_path = _write_sanitized_h5_copy(model_path)
         try:
-            repaired_path = _write_sanitized_h5_copy(model_path)
             return tf.keras.models.load_model(
                 repaired_path,
                 compile=False,
                 custom_objects=custom_objects,
             )
-        except Exception as second_error:
-            raise RuntimeError(
-                "Could not load the Zenodo autoencoder with this TensorFlow/Keras environment. "
-                "The model file is a legacy H5 file; try TensorFlow 2.12--2.15, or update the "
-                "environment and rerun the GUI. Original loading error: "
-                f"{first_error}. Fallback loading error: {second_error}"
-            ) from second_error
-        finally:
-            if repaired_path is not None:
-                try:
-                    repaired_path.unlink(missing_ok=True)
-                except Exception:
-                    pass
+        except Exception as exc:
+            errors.append(f"sanitized load_model failed: {exc}")
+    except Exception as exc:
+        errors.append(f"could not create/use sanitized H5 copy: {exc}")
+    finally:
+        if repaired_path is not None:
+            try:
+                repaired_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
+    try:
+        return _try_load_weights_into_reconstructed_model(model_path, latent_dim=2)
+    except Exception as exc:
+        errors.append(f"reconstructed-architecture fallback failed: {exc}")
+
+    raise RuntimeError(
+        "Could not load the Zenodo autoencoder in this TensorFlow/Keras environment. "
+        "Tried normal H5 loading, sanitized H5 loading, and reconstructing the "
+        "published architecture before loading weights. Details:\n- " + "\n- ".join(errors)
+    )
 
 def _shape_tuple(shape) -> tuple[int | None, ...] | None:
     if shape is None:
@@ -220,6 +366,10 @@ def build_encoder_from_autoencoder(autoencoder, *, latent_dim: int = 2):
         from tensorflow import keras
     except ImportError as exc:
         raise ImportError("TensorFlow/Keras is required for encoder extraction.") from exc
+
+    attached_encoder = getattr(autoencoder, "_meander_encoder", None)
+    if attached_encoder is not None:
+        return attached_encoder
 
     layers = list(getattr(autoencoder, "layers", []) or [])
     if not layers:
