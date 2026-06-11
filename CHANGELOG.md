@@ -2,6 +2,7 @@
 
 ## 0.1.0
 
+- Added compatibility loader for the Zenodo H5 autoencoder when TensorFlow/Keras rejects legacy `groups=1` convolution metadata.
 - Added GUI option to use the Zenodo autoencoder for latent-space clustering.
 - Removed the small diagnostic spectrum-thumbnail image from the GUI.
 - Simplified the logarithmic-energy GUI label.

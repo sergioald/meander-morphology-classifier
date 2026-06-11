@@ -31,3 +31,7 @@ models/Autoencoder_Meander_Bend.h5
 ```
 
 The GUI encodes the extracted bend spectra with the autoencoder encoder and applies K-means in the latent space. The resulting cluster labels are unsupervised labels; compare them with the paper figures before assigning semantic names such as symmetric, upstream-skewed, or downstream-skewed.
+
+### TensorFlow/Keras compatibility
+
+`Autoencoder_Meander_Bend.h5` is a legacy H5 Keras model. Some TensorFlow/Keras versions reject the saved `groups=1` metadata in transposed-convolution layers. The repository loader now handles this by trying a normal load first and then retrying with a temporary sanitized H5 copy. The original model file is not modified.
