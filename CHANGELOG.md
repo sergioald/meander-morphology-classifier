@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased
-
-- Updated CWT spectrum generation to match the original single-bend scripts more closely.
-- Recomputed curvature from reflected isolated bend geometry, then cropped to the central bend before CWT.
-- Removed CWT-stage mirror padding from the GUI because it can visually resemble neighbouring bends at the spectrum edges.
-- Added diagnostic GUI spectrum plot with physical `s / smax` and period axes.
-
 ## 0.1.0
 
-- Initial cleaned single-bend meander morphology classifier repository.
+- Added GUI option to use the Zenodo autoencoder for latent-space clustering.
+- Removed the small diagnostic spectrum-thumbnail image from the GUI.
+- Simplified the logarithmic-energy GUI label.
+- Kept the full CWT contour plot for inspecting the selected isolated bend spectrum.
+- Added synthetic Kinoshita bend generation and related documentation.
+- Added legacy-compatible CWT calculation for isolated single bends.
+- Added endpoint handling controls for single-bend extraction.
+- Added command-line scripts, tests, documentation, and CI configuration.
