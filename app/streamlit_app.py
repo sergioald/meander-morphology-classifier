@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import tempfile
+import traceback
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -211,6 +212,8 @@ if uploaded is not None:
                     metadata[f"latent_{i + 1}"] = latent[:, i]
             except Exception as exc:
                 st.error(f"Could not run autoencoder clustering: {exc}")
+                with st.expander("Technical details"):
+                    st.code(traceback.format_exc())
                 latent = None
                 cluster_labels = None
 
