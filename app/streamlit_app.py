@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from meander_morphology.bends import extract_single_bends
-from meander_morphology.cwt import spectrum_image
+from meander_morphology.cwt import cwt_energy_from_geometry, energy_to_image
 from meander_morphology.io import read_centerline_table
 
 
@@ -41,9 +41,26 @@ def plot_normalized_bend(bend):
     return fig
 
 
+def plot_curvature_and_spectrum(result):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    mesh = ax.contourf(
+        result.s,
+        result.periods,
+        result.energy,
+        levels=32,
+        cmap="gray",
+    )
+    ax.invert_yaxis()
+    ax.set_xlabel("s / smax")
+    ax.set_ylabel("period")
+    fig.colorbar(mesh, ax=ax, label="energy")
+    fig.tight_layout()
+    return fig
+
+
 st.set_page_config(page_title="Meander Morphology Classifier", layout="wide")
 st.title("Meander Morphology Classifier")
-st.caption("Curvature-based single-bend extraction and isolated CWT-spectrum analysis")
+st.caption("Curvature-based single-bend extraction and legacy-compatible isolated CWT-spectrum analysis")
 
 uploaded = st.file_uploader("Upload centerline CSV/TXT/DAT", type=["csv", "txt", "dat"])
 width = st.number_input("Fallback channel width", min_value=0.0, value=100.0, step=10.0)
@@ -71,10 +88,10 @@ endpoint_tolerance = st.slider(
     step=0.01,
     help="Endpoint is accepted in auto mode when |curvature at endpoint| <= tolerance × max(|curvature|).",
 )
-use_cwt_padding = st.checkbox(
-    "Mirror-pad bend before CWT, then crop back to selected bend",
-    value=True,
-    help="This reduces edge artefacts without including adjacent bends in the saved spectrum.",
+log_energy = st.checkbox(
+    "Show log energy, as in some original figure scripts",
+    value=False,
+    help="The model image remains normalized; this only changes the diagnostic spectrum figure.",
 )
 
 if uploaded is not None:
@@ -111,7 +128,8 @@ if uploaded is not None:
     if bends:
         bend_id = st.slider("Bend ID", 0, len(bends) - 1, 0)
         bend = bends[bend_id]
-        image = spectrum_image(bend.curvature, pad=use_cwt_padding)
+        cwt_result = cwt_energy_from_geometry(bend.x, bend.y, target_points=201, log_energy=log_energy)
+        image = energy_to_image(cwt_result.energy, image_size=64)
 
         col3, col4 = st.columns(2)
         with col3:
@@ -122,9 +140,11 @@ if uploaded is not None:
         with col4:
             st.subheader("CWT energy spectrum")
             st.caption(
-                "Spectrum is computed from the selected isolated bend curvature. "
-                "Mirror padding is cropped back to the selected bend and does not add adjacent bends."
+                "The spectrum is computed from the selected normalized single bend. "
+                "The bend is reflected only while recomputing curvature, then cropped back to the central bend before CWT. "
+                "Adjacent bends are not included."
             )
-            st.image((image * 255).astype(np.uint8), clamp=True)
+            st.image((image * 255).astype(np.uint8), clamp=True, width=180)
+            st.pyplot(plot_curvature_and_spectrum(cwt_result), clear_figure=True)
 else:
     st.info("Upload a centerline file with x, y and optionally width columns to begin.")

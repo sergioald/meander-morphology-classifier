@@ -1,55 +1,28 @@
 # Single-bend workflow
 
-The single-bend workflow follows the Water Resources Research paper:
+The single-bend workflow is:
 
-1. read a river centerline with `x`, `y`, and optionally `width`;
-2. smooth and resample the centerline;
-3. compute tangent angle and curvature;
-4. detect curvature sign-change inflection points;
-5. extract bend candidates between consecutive inflection-point boundaries;
-6. normalize each bend by width and rotate it to a common orientation;
-7. compute an isolated CWT energy spectrum for each bend;
-8. optionally encode the spectrum with the Zenodo autoencoder and cluster latent coordinates.
+1. Read a centerline table with `x`, `y` and optionally `width`.
+2. Resample and smooth the centerline.
+3. Compute intrinsic angle and curvature.
+4. Detect interior inflection points from curvature sign changes.
+5. Extract candidate single bends between consecutive inflection points.
+6. Normalize each retained bend by width and rotate it to a common orientation.
+7. Compute the CWT energy spectrum from the isolated normalized bend.
+8. Encode the spectrum with the pre-trained autoencoder and cluster/interpret the latent coordinates.
 
-## Endpoint handling
+## Important CWT detail
 
-Interior inflection points are never thinned before extraction. Removing interior inflections can merge neighbouring single bends into compound-looking units.
+The CWT image should not be computed from a reach that includes neighbouring bends. The legacy research scripts use this order:
 
-File endpoints are handled separately because a centerline file may start or end exactly at a true inflection point, or it may cut through a partial bend. The extractor provides three modes:
-
-- `--endpoint-mode ignore`: use only interior sign-change inflections. This is strict and excludes endpoint candidates.
-- `--endpoint-mode auto`: include an endpoint only if its absolute curvature is small relative to the reach. This is the GUI default.
-- `--endpoint-mode include`: always use endpoints. This can include partial edge bends.
-
-Example:
-
-```bash
-python scripts/extract_single_bends.py \
-  --input examples/example_centerline.csv \
-  --output outputs/bends \
-  --min-chord-widths 0 \
-  --endpoint-mode auto
+```text
+selected single bend geometry
+→ reflect the selected bend at both ends
+→ recompute angle and curvature on the reflected three-bend geometry
+→ crop back to the central selected bend
+→ compute CWT on the cropped central-bend curvature
 ```
 
-For publication-style filtering of short candidates, use a chord-length threshold such as:
+The reflected geometry is only a derivative-stabilisation step. It is removed before the CWT. This avoids intentionally adding adjacent bends to the spectrum while reducing curvature artefacts at the selected bend boundaries.
 
-```bash
-python scripts/extract_single_bends.py \
-  --input examples/example_centerline.csv \
-  --output outputs/bends_filtered \
-  --min-chord-widths 5 \
-  --endpoint-mode auto
-```
-
-## CWT spectrum isolation
-
-The CWT spectrum is computed from the selected bend only. The default implementation mirror-pads the bend curvature before the CWT to reduce edge artefacts, then crops the energy matrix back to the original bend extent. This padding does not add adjacent bends to the saved spectrum.
-
-To disable mirror padding:
-
-```bash
-python scripts/extract_single_bends.py \
-  --input examples/example_centerline.csv \
-  --output outputs/bends_no_padding \
-  --no-cwt-pad
-```
+The GUI and extraction scripts now follow this order. Bright structures close to the left/right edge of a spectrum can still occur because a finite-length wavelet transform has edge/cone-of-influence effects, but they are not produced by including neighbouring centerline bends.

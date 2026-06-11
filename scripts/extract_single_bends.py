@@ -37,11 +37,6 @@ def main() -> None:
         action="store_true",
         help="Backward-compatible alias for --endpoint-mode include.",
     )
-    parser.add_argument(
-        "--no-cwt-pad",
-        action="store_true",
-        help="Disable mirror padding before CWT. Padding is cropped and does not include adjacent bends.",
-    )
     args = parser.parse_args()
 
     width_column = args.width_column or None
@@ -56,12 +51,11 @@ def main() -> None:
         include_edge_bends=args.include_edge_bends,
         endpoint_mode=args.endpoint_mode,
         endpoint_curvature_tolerance=args.endpoint_curvature_tolerance,
-        cwt_pad=not args.no_cwt_pad,
     )
     endpoint_count = sum(row.uses_endpoint_boundary for row in bends)
     print(f"Extracted {len(bends)} single-bend candidates")
     print(f"Endpoint-boundary candidates: {endpoint_count}")
-    print(f"Saved spectra with shape {spectra.shape} to {args.output}")
+    print(f"Saved legacy-compatible isolated spectra with shape {spectra.shape} to {args.output}")
 
 
 if __name__ == "__main__":

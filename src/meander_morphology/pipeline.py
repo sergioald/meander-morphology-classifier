@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from .bends import bends_to_metadata_rows, extract_single_bends
-from .cwt import save_spectrum_image, spectrum_image
+from .cwt import save_spectrum_image, spectrum_image_from_geometry
 from .io import read_centerline_table, write_bend_summary
 
 
@@ -20,11 +20,18 @@ def extract_bends_and_spectra(
     include_edge_bends: bool = False,
     endpoint_mode: str = "auto",
     endpoint_curvature_tolerance: float = 0.10,
-    cwt_pad: bool = True,
-    cwt_pad_fraction: float = 0.5,
-    cwt_max_scale_fraction: float = 0.50,
+    cwt_pad: bool | None = None,
+    cwt_pad_fraction: float | None = None,
+    cwt_max_scale_fraction: float | None = None,
 ) -> tuple[list, np.ndarray]:
-    """Run the centerline → single bends → isolated CWT spectra workflow."""
+    """Run centerline → single bends → legacy-compatible isolated CWT spectra.
+
+    The CWT spectrum is computed from each selected bend's normalized isolated
+    geometry. The bend is reflected only while recomputing curvature and is
+    cropped before the CWT, matching the original research scripts.
+    """
+    del cwt_pad, cwt_pad_fraction, cwt_max_scale_fraction  # kept for backward-compatible calls
+
     output_dir = Path(output_dir)
     spectra_dir = output_dir / "spectra"
     spectra_dir.mkdir(parents=True, exist_ok=True)
@@ -43,12 +50,11 @@ def extract_bends_and_spectra(
 
     spectra = []
     for bend in bends:
-        image = spectrum_image(
-            bend.curvature,
+        image = spectrum_image_from_geometry(
+            bend.x,
+            bend.y,
             image_size=image_size,
-            pad=cwt_pad,
-            pad_fraction=cwt_pad_fraction,
-            max_scale_fraction=cwt_max_scale_fraction,
+            target_points=201,
         )
         spectra.append(image)
         save_spectrum_image(str(spectra_dir / f"bend_{bend.bend_id:04d}.png"), image)
