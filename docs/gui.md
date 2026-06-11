@@ -34,4 +34,6 @@ The GUI encodes the extracted bend spectra with the autoencoder encoder and appl
 
 ### TensorFlow/Keras compatibility
 
-`Autoencoder_Meander_Bend.h5` is a legacy H5 Keras model. Some TensorFlow/Keras versions reject the saved `groups=1` metadata in transposed-convolution layers. The repository loader now handles this by trying a normal load first and then retrying with a temporary sanitized H5 copy. The original model file is not modified.
+`Autoencoder_Meander_Bend.h5` is a legacy H5 Keras model. Some TensorFlow/Keras versions reject the saved `groups=1` metadata in transposed-convolution layers. The repository loader handles this by trying a normal load first and then retrying with a temporary sanitized H5 copy. The original model file is not modified.
+
+The encoder extraction is also compatible with the Zenodo model when it loads as nested Keras `Sequential` encoder/decoder blocks.
