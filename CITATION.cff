@@ -1,37 +1,29 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite the associated paper and model record."
+message: "If you use this software, please cite it using the metadata from this file and the associated paper."
 title: "Meander Morphology Classifier"
+version: "0.2.0"
+date-released: "2026-06-26"
+repository-code: "https://github.com/sergioald/meander-morphology-classifier"
+license: "MIT"
 authors:
   - family-names: "Lopez Dubon"
     given-names: "Sergio"
-repository-code: "https://github.com/sergioald/meander-morphology-classifier"
-license: "MIT"
-version: "0.1.0"
-date-released: "2026-06-10"
-preferred-citation:
-  type: article
-  title: "A curvature-based framework for automated classification of meander bends"
-  authors:
-    - family-names: "Lopez Dubon"
-      given-names: "Sergio"
-    - family-names: "Sgarabotto"
-      given-names: "Alessandro"
-    - family-names: "Lanzoni"
-      given-names: "Stefano"
-  journal: "Water Resources Research"
-  year: 2025
-  volume: 61
-  doi: "10.1029/2024WR037583"
-references:
-  - type: software
-    title: "Autoencoder for Meander Bends Classification"
-    authors:
-      - family-names: "Lopez Dubon"
-        given-names: "Sergio"
-      - family-names: "Sgarabotto"
-        given-names: "Alessandro"
-      - family-names: "Lanzoni"
-        given-names: "Stefano"
-    publisher: "Zenodo"
-    year: 2024
-    doi: "10.5281/zenodo.13913710"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Sgarabotto"
+    given-names: "Alessandro"
+  - family-names: "Lanzoni"
+    given-names: "Stefano"
+keywords:
+  - meandering rivers
+  - compound meanders
+  - curvature
+  - continuous wavelet transform
+  - autoencoder
+  - geomorphology
+  - machine learning
+abstract: >-
+  Python research-software toolkit and Streamlit graphical user interface for
+  curvature-spectral meander bend classification. The software supports
+  inflection-point single-bend extraction, CWT spectrum generation, compound
+  bend segmentation from curvature spectral energy, and latent-space inference
+  using separately archived trained model files.

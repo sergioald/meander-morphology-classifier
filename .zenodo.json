@@ -1,0 +1,28 @@
+{
+  "title": "Meander Morphology Classifier",
+  "upload_type": "software",
+  "description": "Python research-software toolkit and Streamlit graphical user interface for curvature-spectral meander bend classification. The software supports inflection-point single-bend extraction, CWT spectrum generation, compound bend segmentation from curvature spectral energy, and latent-space inference using separately archived trained model files.",
+  "creators": [
+    {
+      "name": "Lopez Dubon, Sergio",
+      "affiliation": "University of Edinburgh"
+    },
+    {
+      "name": "Sgarabotto, Alessandro"
+    },
+    {
+      "name": "Lanzoni, Stefano"
+    }
+  ],
+  "license": "MIT",
+  "keywords": [
+    "meandering rivers",
+    "compound meanders",
+    "curvature",
+    "continuous wavelet transform",
+    "autoencoder",
+    "geomorphology",
+    "machine learning"
+  ],
+  "related_identifiers": []
+}
