@@ -4,14 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meander-morphology-classifier"
-version = "0.1.0"
+version = "0.2.0"
 description = "Curvature-based meander bend detection and classification using CWT spectra, autoencoders and clustering."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{ name = "Sergio Lopez Dubon" }]
+authors = [
+  { name = "Sergio Lopez Dubon" },
+  { name = "Alessandro Sgarabotto" },
+  { name = "Stefano Lanzoni" },
+]
 keywords = [
   "meandering rivers",
+  "compound meanders",
   "curvature",
   "wavelet transform",
   "autoencoder",
@@ -40,6 +45,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "optional: tests that require optional dependencies or local model files",
+]
 
 [tool.ruff]
 line-length = 100
