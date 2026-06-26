@@ -1,39 +1,35 @@
-# GUI
+# Local graphical user interface
 
-The Streamlit GUI supports interactive single-bend extraction from a centerline file.
-
-Run it from the repository root:
+The repository includes a local Streamlit graphical user interface. It is launched from a terminal and opens in the user's browser, but it is intended as a local scientific GUI rather than a hosted webpage.
 
 ```bash
 streamlit run app/streamlit_app.py
 ```
 
-The app can:
+## Tabs
 
-1. load a CSV, TXT, or DAT centerline file;
-2. detect candidate single bends from curvature sign-change inflection points;
-3. display the selected bend and its normalized geometry;
-4. compute the legacy-compatible CWT energy spectrum for the selected isolated bend;
-5. optionally load the Zenodo autoencoder and cluster extracted bends in latent space.
+The GUI is organised into five tabs:
 
-## Autoencoder option
+1. **Home**: describes the workflows and previews the uploaded centreline.
+2. **Single-bend classifier**: extracts inflection-point single bends, displays their isolated CWT spectra and optionally applies the published single-bend autoencoder.
+3. **Compound-bend workflow**: extracts CWT-energy meander units using reach-scale spectral segmentation and exports the compound unit table and spectra.
+4. **Compound latent space**: encodes compound spectra using a local encoder or full autoencoder model from the separate model/data Zenodo record.
+5. **Reproducibility**: summarises local model-file expectations and Zenodo separation between software and model/data artefacts.
 
-Download the Zenodo model first:
+## Model files
 
-```bash
-python scripts/download_model.py --output models
-```
-
-Then enable **Use Zenodo autoencoder for latent-space clustering** in the GUI. The default path is:
+The software Zenodo record should not include large trained model files. For compound latent-space inference, place the separately archived model/data files under `models/`, for example:
 
 ```text
-models/Autoencoder_Meander_Bend.h5
+models/compound_autoencoder.h5
+models/compound_autoencoder.h5
+models/world_latent_cloud.npy
 ```
 
-The GUI encodes the extracted bend spectra with the autoencoder encoder and applies K-means in the latent space. The resulting cluster labels are unsupervised labels; compare them with the paper figures before assigning semantic names such as symmetric, upstream-skewed, or downstream-skewed.
+The GUI defaults to `models/compound_autoencoder.h5` because the encoder-only model is lighter and avoids unnecessary decoder loading during inference.
 
-### TensorFlow/Keras compatibility
+## Recommended citation wording
 
-`Autoencoder_Meander_Bend.h5` is a legacy H5 Keras model. Some TensorFlow/Keras versions reject the saved `groups=1` metadata in transposed-convolution layers. The repository loader handles this by trying a normal load first and then retrying with a temporary sanitized H5 copy. The original model file is not modified.
+In the manuscript, refer to the interface as a *local graphical user interface* or *local Streamlit-based graphical user interface*, not as a webpage. Suggested wording:
 
-The encoder extraction is also compatible with the Zenodo model when it loads as nested Keras `Sequential` encoder/decoder blocks.
+> The archived software release includes a local Streamlit-based graphical user interface that allows users to upload river centreline files, extract single and compound meander units, compute curvature-spectrum images, and encode compound units into the trained latent space when the Zenodo model files are provided.

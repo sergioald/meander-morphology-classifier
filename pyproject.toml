@@ -9,7 +9,11 @@ description = "Curvature-based meander bend detection and classification using C
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{ name = "Sergio Lopez Dubon" }]
+authors = [
+  { name = "Sergio Lopez Dubon" },
+  { name = "Alessandro Sgarabotto" },
+  { name = "Stefano Lanzoni" },
+]
 keywords = [
   "meandering rivers",
   "compound meanders",
