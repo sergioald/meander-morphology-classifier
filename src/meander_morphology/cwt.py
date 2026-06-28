@@ -327,6 +327,118 @@ def energy_to_image(energy: np.ndarray, *, image_size: int = 64, normalize: bool
     return np.clip(resized, 0.0, 1.0)
 
 
+
+def legacy_compound_training_image_from_curvature(
+    curvature: np.ndarray,
+    *,
+    image_size: int = 64,
+    cut_points: int = 501,
+    wavelet: str = "mexh",
+    dt: float = 0.002,
+    contour_levels: int = 8,
+    smooth: bool = True,
+) -> np.ndarray:
+    """Return the compound-model CWT image using the legacy training-style recipe.
+
+    The compound autoencoder was trained on grayscale CWT images generated from an
+    isolated compound-unit curvature signal, mirrored in curvature space, analysed
+    with a Mexican-hat CWT, displayed with a white background and dark high-energy
+    structures, and then resized for the model. This helper deliberately differs
+    from the reach-scale CWT used for segmentation and from the single-bend GUI
+    diagnostic.
+
+    Parameters
+    ----------
+    curvature:
+        Curvature signal for one detected simple/compound unit.
+    image_size:
+        Output square image size used by the autoencoder.
+    cut_points:
+        Number of points in the central curvature segment before mirroring. The
+        legacy scripts used 501, then cropped the centre 501 points after CWT.
+    wavelet:
+        PyWavelets wavelet name. The trained workflow used ``mexh``.
+    dt:
+        Normalised sampling period. The trained workflow used 0.002 for 501
+        points over a unit-length streamwise coordinate.
+    contour_levels:
+        Approximate the discrete contour bands of the training PNGs. Set to 0 or
+        1 to keep a continuous image.
+    smooth:
+        Apply light smoothing/denoising before the CWT, matching the spirit of
+        the research scripts while keeping the function deterministic and fast.
+    """
+    if pywt is None:  # pragma: no cover
+        raise ImportError("PyWavelets is required to build compound training-style CWT images.")
+
+    c = np.asarray(curvature, dtype=float).ravel()
+    c = c[np.isfinite(c)]
+    if c.size < 4:
+        raise ValueError("curvature must contain at least four finite values")
+
+    cut_points = int(cut_points)
+    image_size = int(image_size)
+    if cut_points < 32:
+        raise ValueError("cut_points must be at least 32")
+    if image_size < 8:
+        raise ValueError("image_size must be at least 8")
+
+    # Legacy code interpolated each extracted unit to a normalised streamwise
+    # coordinate before mirroring the curvature signal on both sides.
+    source = np.linspace(0.0, 1.0, c.size)
+    target = np.linspace(0.0, 1.0, cut_points)
+    c = np.interp(target, source, c)
+
+    if smooth and c.size >= 9:
+        window = min(27, c.size if c.size % 2 == 1 else c.size - 1)
+        window = max(9, window)
+        if window % 2 == 0:
+            window -= 1
+        if window >= 5:
+            c = savgol_filter(c, window, min(3, window - 2), mode="interp")
+
+    left = (2.0 * c[0] - c)[::-1][:-1]
+    right = (2.0 * c[-1] - c)[::-1][1:]
+    padded = np.concatenate([left, c, right])
+
+    if smooth and padded.size >= 16:
+        padded = _safe_denoise(padded, wavelet="db17", sigma_factor=1.0)
+        window = min(27, padded.size if padded.size % 2 == 1 else padded.size - 1)
+        if window >= 5:
+            padded = savgol_filter(padded, window, min(3, window - 2), mode="interp")
+
+    fs = 1.0 / float(dt)
+    frequencies = np.arange(1, cut_points - 1, dtype=float) / fs
+    scales = pywt.frequency2scale(wavelet, frequencies)
+    coeffs, _ = pywt.cwt(padded, scales=scales, wavelet=wavelet, sampling_period=float(dt))
+    cwt_matrix = np.abs(coeffs)
+
+    start = cut_points - 1
+    stop = start + cut_points
+    cwt_matrix = cwt_matrix[:, start:stop]
+
+    finite = np.isfinite(cwt_matrix)
+    if not finite.any():
+        image = np.ones_like(cwt_matrix, dtype=float)
+    else:
+        vmin = float(np.nanmean(cwt_matrix[finite]) + np.nanstd(cwt_matrix[finite]))
+        vmax = float(np.nanmax(cwt_matrix[finite]))
+        if not np.isfinite(vmax) or vmax <= vmin:
+            scaled = np.zeros_like(cwt_matrix, dtype=float)
+        else:
+            scaled = np.clip((cwt_matrix - vmin) / (vmax - vmin), 0.0, 1.0)
+        # Training PNGs used a white background with high-energy CWT structures
+        # appearing dark. Keep that polarity for model input compatibility.
+        image = 1.0 - scaled
+
+    if contour_levels and int(contour_levels) > 1:
+        levels = int(contour_levels)
+        image = np.round(image * (levels - 1)) / float(levels - 1)
+
+    zoom_factors = (image_size / image.shape[0], image_size / image.shape[1])
+    resized = zoom(image, zoom_factors, order=1)
+    return np.clip(resized, 0.0, 1.0).astype("float32")
+
 def save_spectrum_image(path: str, image: np.ndarray) -> None:
     """Save a spectrum image as PNG."""
     import matplotlib.pyplot as plt

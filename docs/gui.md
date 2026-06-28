@@ -82,3 +82,8 @@ The compound latent-space panel can optionally annotate detected units with thei
 The compound CWT image shown in the workflow tab has two display modes. The enhanced preview is intended for visual inspection. The exact 64 x 64 image is the reproducible model input passed to the compound autoencoder; it uses pixel axes because it is a resized array rather than a physical CWT diagnostic figure.
 
 The reach-scale CWT diagnostic is a display-only diagnostic. The maximum displayed frequency can be adjusted in the GUI without changing the underlying compound segmentation.
+
+
+## Compound model CWT image convention
+
+The compound-bend model-input image is different from the reach-scale CWT diagnostic. The reach-scale CWT is a physical/diagnostic plot used to inspect segmentation. The compound model image is a resized 64 x 64 training-style array generated from one extracted unit's curvature signal. It follows the legacy training-image polarity: white background with dark high-energy CWT structures. The GUI enhanced preview is for visual inspection only; the exact 64 x 64 array is the image passed to the compound autoencoder.

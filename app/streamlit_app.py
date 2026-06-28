@@ -386,11 +386,13 @@ def build_spectrum_images_for_single_model(bends) -> np.ndarray:
 
 
 def build_spectrum_images_for_compound_model(units, *, image_size: int = 64) -> np.ndarray:
+    """Build compound images with the same polarity/style as the trained compound model."""
+    from meander_morphology.cwt import legacy_compound_training_image_from_curvature
+
     images = []
     for unit in units:
-        images.append(spectrum_image_from_geometry(unit.x, unit.y, image_size=image_size, target_points=201))
+        images.append(legacy_compound_training_image_from_curvature(unit.curvature, image_size=image_size))
     return np.asarray(images, dtype="float32")
-
 
 st.set_page_config(page_title="Meander Morphology Classifier", layout="wide")
 st.title("Meander Morphology Classifier")
@@ -677,7 +679,7 @@ with compound_tab:
                     with exact_col:
                         st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=False), clear_figure=True)
                 st.caption(
-                    "The exact 64 x 64 array is passed to the compound autoencoder. The enhanced preview is display-only. "
+                    "The exact 64 x 64 array is passed to the compound autoencoder and now uses the legacy training-image polarity: white background, dark high-energy CWT structures. The enhanced preview is display-only. "
                     "Pixel axes are used because this is a resized model input image, not the paper-style physical CWT diagnostic."
                 )
                 st.download_button("Download compound spectra NPY", _to_npy_download(spectra), "compound_spectra.npy", "application/octet-stream")

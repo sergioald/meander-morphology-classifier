@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from .compound import compound_bends_to_metadata_rows, extract_compound_bends
-from .cwt import save_spectrum_image, spectrum_image_from_geometry
+from .cwt import legacy_compound_training_image_from_curvature, save_spectrum_image
 from .io import read_centerline_table, write_bend_summary
 
 
@@ -50,12 +50,7 @@ def extract_compound_bends_and_spectra(
 
     spectra = []
     for unit in units:
-        image = spectrum_image_from_geometry(
-            unit.x,
-            unit.y,
-            image_size=image_size,
-            target_points=unit_points,
-        )
+        image = legacy_compound_training_image_from_curvature(unit.curvature, image_size=image_size)
         spectra.append(image)
         save_spectrum_image(str(spectra_dir / f"compound_unit_{unit.unit_id:04d}.png"), image)
 
