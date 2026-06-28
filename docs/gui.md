@@ -57,3 +57,10 @@ The GUI defaults to `models/compound_autoencoder.h5` because it is currently the
 In the manuscript, refer to the interface as a *local graphical user interface* or *local Streamlit-based graphical user interface*, not as a webpage. Suggested wording:
 
 > The archived software release includes a local Streamlit-based graphical user interface that allows users to upload river centreline files, extract single and compound meander units, compute curvature-spectrum images, and encode compound units into the trained latent space when the Zenodo model files are provided.
+
+
+## GUI polish notes
+
+The compound latent-space tab is intentionally inference-only. The latent dimension is fixed at the trained 2-D embedding and the batch size is fixed internally; the GUI does not expose training-from-zero controls.
+
+The compound workflow tab now shows a compact legacy-style reach diagnostic inspired by the research scripts: reach-scale CWT energy, the integrated corridor-energy signal, curvature, and the centreline with unit boundaries. The separate model CWT image remains the 64 x 64 grayscale image used as autoencoder input.

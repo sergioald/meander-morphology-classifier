@@ -24,6 +24,17 @@ from meander_morphology.latent import encode_spectra
 from meander_morphology.model import build_encoder_from_autoencoder, load_autoencoder
 
 
+APP_ROOT = Path(__file__).resolve().parents[1]
+
+
+def resolve_local_path(path_text: str | Path | None) -> Path:
+    """Resolve GUI paths relative to the repository root when they are not absolute."""
+    path = Path(path_text or "")
+    if path.is_absolute():
+        return path
+    return APP_ROOT / path
+
+
 @st.cache_resource(show_spinner=False)
 def load_autoencoder_and_encoder(model_path: str, latent_dim: int = 2):
     autoencoder = load_autoencoder(model_path)
@@ -165,61 +176,127 @@ def plot_compound_segmentation_signal(segmentation, units=None, selected_id: int
     fig.tight_layout()
     return fig
 
-def plot_compound_reach_cwt(segmentation, units=None, selected_id: int | None = None, *, log_energy: bool = True):
-    """Plot the reach-scale CWT matrix used for compound segmentation."""
+def plot_compound_reach_cwt(segmentation, x: np.ndarray, y: np.ndarray, units=None, selected_id: int | None = None):
+    """Compact four-panel reach diagnostic following the legacy research-plot layout."""
     energy = np.asarray(segmentation.energy, dtype=float)
-    display_energy = np.log1p(energy) if log_energy else energy
-    fig, ax = plt.subplots(figsize=(6.0, 3.0))
-    mesh = ax.contourf(
-        segmentation.s,
-        segmentation.frequencies,
-        display_energy,
-        levels=32,
-        cmap="gray",
+    freqs = np.asarray(segmentation.frequencies, dtype=float)
+    s = np.asarray(segmentation.s, dtype=float)
+    ridge = np.asarray(segmentation.ridge_indices, dtype=int)
+    trough = np.asarray(segmentation.trough_indices, dtype=int)
+
+    finite_energy = np.where(np.isfinite(energy), energy, 0.0)
+    display_energy = np.log1p(np.maximum(finite_energy, 0.0))
+
+    valid = np.concatenate([ridge, trough]) if ridge.size and trough.size else np.arange(len(freqs))
+    valid = valid[(valid >= 0) & (valid < len(freqs))]
+    if valid.size:
+        lo = max(0, int(np.nanmin(valid)) - 2)
+        hi = min(len(freqs) - 1, int(np.nanmax(valid)) + 2)
+    else:
+        lo, hi = 0, len(freqs) - 1
+    if hi <= lo:
+        lo, hi = 0, len(freqs) - 1
+    freq_slice = slice(lo, hi + 1)
+
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(
+        4,
+        1,
+        figsize=(6.4, 6.0),
+        height_ratios=[1.05, 0.8, 0.8, 2.1],
+        sharex=False,
     )
+    plt.subplots_adjust(hspace=0.16)
+
+    mesh = ax1.pcolormesh(s, freqs[freq_slice], display_energy[freq_slice, :], shading="auto", cmap="jet")
+    if ridge.size == s.size:
+        ax1.plot(s, freqs[np.clip(ridge, 0, len(freqs) - 1)], linewidth=1.2, label="ridge")
+    if trough.size == s.size:
+        ax1.plot(s, freqs[np.clip(trough, 0, len(freqs) - 1)], linewidth=1.2, label="trough")
     for boundary in segmentation.boundary_indices:
-        ax.axvline(segmentation.s[int(boundary)], linewidth=0.8, alpha=0.45)
-    if units and selected_id is not None:
-        unit = units[selected_id]
-        ax.axvspan(segmentation.s[unit.start_index], segmentation.s[unit.end_index], alpha=0.12)
-    ax.set_xlabel("along-centreline distance")
-    ax.set_ylabel("pseudo-frequency")
-    ax.set_title("Reach-scale CWT energy used for segmentation")
-    fig.colorbar(mesh, ax=ax, label="log1p energy" if log_energy else "energy")
-    fig.tight_layout()
+        ax1.axvline(segmentation.s[int(boundary)], linewidth=0.9, alpha=0.85)
+    ax1.set_ylabel("freq [1/unit]")
+    ax1.set_title("Reach-scale CWT diagnostic")
+    ax1.tick_params(labelsize=8)
+
+    ax2.plot(s, segmentation.normalised_energy, linewidth=1.2)
+    for boundary in segmentation.boundary_indices:
+        ax2.plot(segmentation.s[int(boundary)], segmentation.normalised_energy[int(boundary)], ".", ms=7)
+    ax2.axhline(y=0.15, linestyle="--", linewidth=0.9, alpha=0.7)
+    ax2.set_ylabel("ΣE")
+    ax2.set_ylim(-0.04, 1.04)
+    ax2.tick_params(labelsize=8)
+
+    curvature = np.full_like(s, np.nan, dtype=float)
+    if units:
+        for unit in units:
+            start = int(unit.start_index)
+            end = int(unit.end_index)
+            vals = np.asarray(unit.curvature, dtype=float)
+            if vals.size and end > start:
+                target = np.linspace(start, end, vals.size)
+                idx = np.arange(start, end + 1)
+                curvature[start : end + 1] = np.interp(idx, target, vals)
+    if not np.isfinite(curvature).any():
+        curvature = np.gradient(segmentation.normalised_energy, edge_order=1)
+    ax3.plot(s, curvature, linewidth=1.0)
+    for boundary in segmentation.boundary_indices:
+        ax3.plot(segmentation.s[int(boundary)], curvature[int(boundary)], ".", ms=6)
+    ax3.axhline(y=0.0, linestyle="--", linewidth=0.8, alpha=0.55)
+    ax3.set_ylabel("curv")
+    ax3.set_xlabel("s")
+    ax3.tick_params(labelsize=8)
+
+    ax4.plot(x, y, linewidth=1.0)
+    if units:
+        for unit in units:
+            alpha = 1.0 if unit.unit_id == selected_id else 0.45
+            lw = 2.0 if unit.unit_id == selected_id else 0.8
+            ax4.plot(unit.raw_x, unit.raw_y, linewidth=lw, alpha=alpha)
+            ax4.scatter([unit.raw_x[0], unit.raw_x[-1]], [unit.raw_y[0], unit.raw_y[-1]], s=18, alpha=alpha)
+            if len(unit.raw_x):
+                mid = len(unit.raw_x) // 2
+                ax4.annotate(str(unit.unit_id), (unit.raw_x[mid], unit.raw_y[mid]), fontsize=7)
+    ax4.axis("equal")
+    ax4.set_xlabel("x")
+    ax4.set_ylabel("y")
+    ax4.tick_params(labelsize=8)
+
+    # Keep the diagnostic compact inside Streamlit.
+    fig.tight_layout(pad=0.6)
     return fig
 
 
 def plot_compound_spectrum_image(image: np.ndarray, unit_id: int | None = None):
     """Plot the 64 x 64 model input image saved by the command-line workflow."""
-    fig, ax = plt.subplots(figsize=(3.0, 3.0))
+    fig, ax = plt.subplots(figsize=(2.2, 2.2))
     ax.imshow(np.asarray(image), cmap="gray", vmin=0.0, vmax=1.0, origin="upper", aspect="auto")
     title = "Model CWT image" if unit_id is None else f"Model CWT image: unit {unit_id}"
-    ax.set_title(title)
-    ax.set_xlabel("s pixel")
-    ax.set_ylabel("CWT-scale pixel")
+    ax.set_title(title, fontsize=10)
+    ax.set_xlabel("s pixel", fontsize=8)
+    ax.set_ylabel("scale pixel", fontsize=8)
+    ax.tick_params(labelsize=7)
     fig.tight_layout()
     return fig
 
 
 def plot_compound_latent(table: pd.DataFrame, background_latent: np.ndarray | None = None, selected_id: int | None = None):
-    fig, ax = plt.subplots(figsize=(6, 5))
+    fig, ax = plt.subplots(figsize=(4.4, 3.6))
     if background_latent is not None and background_latent.ndim == 2 and background_latent.shape[1] >= 2:
-        ax.scatter(background_latent[:, 0], background_latent[:, 1], s=2, alpha=0.12, label="background latent cloud")
+        ax.scatter(background_latent[:, 0], background_latent[:, 1], s=1.5, alpha=0.10, label="background latent cloud")
     if {"latent_1", "latent_2"}.issubset(table.columns):
         if "n_lobes" in table.columns:
-            scatter = ax.scatter(table["latent_1"], table["latent_2"], c=table["n_lobes"], s=55, label="compound units")
-            fig.colorbar(scatter, ax=ax, label="n_lobes")
+            scatter = ax.scatter(table["latent_1"], table["latent_2"], c=table["n_lobes"], s=34, label="compound units")
+            fig.colorbar(scatter, ax=ax, label="n_lobes", shrink=0.75)
         else:
-            ax.scatter(table["latent_1"], table["latent_2"], s=55, label="compound units")
+            ax.scatter(table["latent_1"], table["latent_2"], s=34, label="compound units")
         for _, row in table.iterrows():
-            ax.annotate(str(int(row.get("unit_id", 0))), (row["latent_1"], row["latent_2"]), fontsize=8, xytext=(4, 4), textcoords="offset points")
+            ax.annotate(str(int(row.get("unit_id", 0))), (row["latent_1"], row["latent_2"]), fontsize=7, xytext=(3, 3), textcoords="offset points")
         if selected_id is not None and selected_id < len(table):
             row = table.iloc[selected_id]
-            ax.scatter([row["latent_1"]], [row["latent_2"]], marker="x", s=140, linewidths=3)
+            ax.scatter([row["latent_1"]], [row["latent_2"]], marker="x", s=90, linewidths=2)
     ax.set_xlabel("latent_1")
     ax.set_ylabel("latent_2")
-    ax.set_title("Compound-bend latent space")
+    ax.set_title("Compound-bend latent space", fontsize=11)
     ax.legend(loc="best")
     fig.tight_layout()
     return fig
@@ -390,7 +467,7 @@ with single_tab:
         cluster_labels = None
 
         if use_autoencoder and bends:
-            model_file = Path(model_path)
+            model_file = resolve_local_path(model_path)
             if not model_file.exists():
                 st.warning(f"Model file not found: {model_file}")
             elif len(bends) < int(n_clusters):
@@ -427,8 +504,17 @@ with single_tab:
                 st.pyplot(plot_normalized_bend(bend), clear_figure=True)
             with col2:
                 st.pyplot(plot_curvature_and_spectrum(cwt_result), clear_figure=True)
-                if latent is not None and cluster_labels is not None:
+            if latent is not None and cluster_labels is not None:
+                st.subheader("Single-bend latent-space clustering")
+                st.write(
+                    f"Selected bend cluster: **{int(cluster_labels[bend_id])}** "
+                    f"from **{int(n_clusters)}** K-means clusters."
+                )
+                lat_col, _ = st.columns([0.55, 0.45])
+                with lat_col:
                     st.pyplot(plot_single_latent_space(latent, cluster_labels, bend_id), clear_figure=True)
+            elif use_autoencoder:
+                st.info("No latent-space plot is available yet. Check that the single-bend model path exists and that the number of bends is at least the requested number of clusters.")
 
 with compound_tab:
     st.subheader("Compound-bend workflow")
@@ -446,8 +532,6 @@ with compound_tab:
         with col_d:
             valley_prominence = st.number_input("Valley prominence", min_value=0.0, max_value=0.5, value=0.05, step=0.01)
         show_reach_cwt = st.checkbox("Show reach-scale CWT energy", value=True)
-        log_reach_cwt = st.checkbox("Use log scale for reach CWT", value=True)
-
         try:
             units, segmentation = extract_compound_bends(
                 x,
@@ -477,18 +561,22 @@ with compound_tab:
                     st.pyplot(plot_compound_segmentation_signal(segmentation, units, selected_unit), clear_figure=True)
 
                 if show_reach_cwt:
-                    st.pyplot(
-                        plot_compound_reach_cwt(segmentation, units, selected_unit, log_energy=bool(log_reach_cwt)),
-                        clear_figure=True,
-                    )
+                    diag_col, _ = st.columns([0.72, 0.28])
+                    with diag_col:
+                        st.pyplot(
+                            plot_compound_reach_cwt(segmentation, x, y, units, selected_unit),
+                            clear_figure=True,
+                        )
                     st.caption(
-                        "This is the reach-scale CWT energy matrix used to detect compound-unit boundaries. "
-                        "It is different from the 64 x 64 model image saved for each extracted unit."
+                        "Legacy-style reach diagnostic: reach CWT, corridor-energy signal, curvature panel and centreline boundaries. "
+                        "This is different from the 64 x 64 model image saved for each extracted unit."
                     )
 
-                st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit), clear_figure=True)
+                img_col, _ = st.columns([0.32, 0.68])
+                with img_col:
+                    st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit), clear_figure=True)
                 st.caption(
-                    "The selected-unit model CWT image above matches the grayscale PNG/NPY spectra exported by "
+                    "The selected-unit model CWT image matches the grayscale PNG/NPY spectra exported by "
                     "the command-line compound workflow."
                 )
                 st.download_button("Download compound spectra NPY", _to_npy_download(spectra), "compound_spectra.npy", "application/octet-stream")
@@ -515,12 +603,13 @@ with latent_tab:
             model_is_encoder = st.checkbox("Model is encoder-only", value=False)
             latent_layer_name = st.text_input("Latent layer name for full autoencoder", value="Latent_Space", disabled=model_is_encoder)
         with col_b:
-            compound_latent_dim = st.number_input("Compound latent dimension", min_value=1, max_value=16, value=2, step=1)
-            batch_size = st.number_input("Batch size", min_value=1, max_value=512, value=128, step=16)
             background_path = st.text_input("Background latent cloud path", value="models/world_latent_cloud.npy")
+            st.caption("Inference uses the trained 2-D latent space and a fixed batch size of 128. Training from zero is not exposed in the GUI.")
+        compound_latent_dim = 2
+        batch_size = 128
 
         if st.button("Encode compound units"):
-            model_file = Path(compound_model_path)
+            model_file = resolve_local_path(compound_model_path)
             if not model_file.exists():
                 st.error(f"Model file not found: {model_file}")
             else:
@@ -542,7 +631,7 @@ with latent_tab:
                             how="left",
                             validate="one_to_one",
                         )
-                        background_file = Path(background_path) if background_path else None
+                        background_file = resolve_local_path(background_path) if background_path else None
                         background_arg = background_file if background_file and background_file.exists() else None
                         diagnostic_table = build_latent_diagnostics(latent_table, background_latent_path=background_arg)
                         st.session_state["compound_latent_table"] = diagnostic_table
@@ -561,11 +650,13 @@ with latent_tab:
             background_state = st.session_state.get("compound_background_path", "")
             if background_state:
                 try:
-                    background = np.load(Path(background_state))
+                    background = np.load(resolve_local_path(background_state))
                 except Exception:
                     background = None
             selected = st.slider("Highlight latent unit", 0, len(latent_table) - 1, 0, key="latent_selected_unit")
-            st.pyplot(plot_compound_latent(latent_table, background_latent=background, selected_id=selected), clear_figure=True)
+            lat_col, _ = st.columns([0.56, 0.44])
+            with lat_col:
+                st.pyplot(plot_compound_latent(latent_table, background_latent=background, selected_id=selected), clear_figure=True)
 
 with reproducibility_tab:
     st.subheader("Reproducibility and Zenodo files")
