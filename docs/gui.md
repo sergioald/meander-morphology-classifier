@@ -64,3 +64,12 @@ In the manuscript, refer to the interface as a *local graphical user interface* 
 The compound latent-space tab is intentionally inference-only. The latent dimension is fixed at the trained 2-D embedding and the batch size is fixed internally; the GUI does not expose training-from-zero controls.
 
 The compound workflow tab now shows a compact legacy-style reach diagnostic inspired by the research scripts: reach-scale CWT energy, the integrated corridor-energy signal, curvature, and the centreline with unit boundaries. The separate model CWT image remains the 64 x 64 grayscale image used as autoencoder input.
+## GUI polish notes for paper/Zenodo release
+
+The GUI separates display diagnostics from model inputs:
+
+- The reach-scale CWT diagnostic is a legacy-style visual check for compound-unit segmentation. The frequency display range can be widened from the GUI without changing the segmentation calculation.
+- The selected-unit model CWT image is the exact 64 x 64 array passed to the trained compound autoencoder. An enhanced preview is shown beside it only for human visibility.
+- The compound latent-space plot uses a simple legend: reference meander cloud, detected meander units, and selected unit. It does not use `n_lobes` as the colour scale by default.
+- The single-bend classifier shows a visible latent-space cluster plot and cluster-size table when the optional single-bend autoencoder is available locally.
+
