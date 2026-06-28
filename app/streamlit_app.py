@@ -58,11 +58,15 @@ def _to_npy_download(array: np.ndarray) -> bytes:
     return buffer.getvalue()
 
 
-def read_uploaded_centerline(uploaded_file) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+def read_uploaded_centerline(
+    uploaded_file,
+    *,
+    width_column: str | None = "width",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
         tmp.write(uploaded_file.getvalue())
         tmp_path = Path(tmp.name)
-    return read_centerline_table(tmp_path)
+    return read_centerline_table(tmp_path, width_column=width_column)
 
 
 def plot_centerline_with_bend(x: np.ndarray, y: np.ndarray, bend=None):
@@ -128,13 +132,13 @@ def plot_single_latent_space(latent: np.ndarray, labels: np.ndarray, selected_id
 
 
 def plot_compound_units_on_centerline(x: np.ndarray, y: np.ndarray, units, selected_id: int | None = None):
-    fig, ax = plt.subplots(figsize=(8, 4.5))
+    fig, ax = plt.subplots(figsize=(5.8, 3.2))
     ax.plot(x, y, linewidth=1.0, label="centerline")
     for unit in units:
-        linewidth = 3.0 if unit.unit_id == selected_id else 1.8
+        linewidth = 2.2 if unit.unit_id == selected_id else 1.2
         alpha = 1.0 if unit.unit_id == selected_id else 0.55
         ax.plot(unit.raw_x, unit.raw_y, linewidth=linewidth, alpha=alpha)
-        ax.scatter([unit.raw_x[0], unit.raw_x[-1]], [unit.raw_y[0], unit.raw_y[-1]], s=20, alpha=alpha)
+        ax.scatter([unit.raw_x[0], unit.raw_x[-1]], [unit.raw_y[0], unit.raw_y[-1]], s=12, alpha=alpha)
         if len(unit.raw_x):
             mid = len(unit.raw_x) // 2
             ax.annotate(str(unit.unit_id), (unit.raw_x[mid], unit.raw_y[mid]), fontsize=8)
@@ -147,17 +151,53 @@ def plot_compound_units_on_centerline(x: np.ndarray, y: np.ndarray, units, selec
 
 
 def plot_compound_segmentation_signal(segmentation, units=None, selected_id: int | None = None):
-    fig, ax = plt.subplots(figsize=(8, 3.5))
+    fig, ax = plt.subplots(figsize=(5.8, 2.6))
     ax.plot(segmentation.s, segmentation.normalised_energy, linewidth=1.5, label="normalised corridor energy")
     for boundary in segmentation.boundary_indices:
         ax.axvline(segmentation.s[int(boundary)], linewidth=0.8, alpha=0.45)
     if units and selected_id is not None:
         unit = units[selected_id]
-        ax.axvspan(unit.raw_s[0] + segmentation.s[unit.start_index], segmentation.s[unit.end_index], alpha=0.12)
+        ax.axvspan(segmentation.s[unit.start_index], segmentation.s[unit.end_index], alpha=0.12)
     ax.set_xlabel("along-centreline distance")
     ax.set_ylabel("normalised energy")
     ax.set_ylim(-0.03, 1.03)
     ax.legend(loc="best")
+    fig.tight_layout()
+    return fig
+
+def plot_compound_reach_cwt(segmentation, units=None, selected_id: int | None = None, *, log_energy: bool = True):
+    """Plot the reach-scale CWT matrix used for compound segmentation."""
+    energy = np.asarray(segmentation.energy, dtype=float)
+    display_energy = np.log1p(energy) if log_energy else energy
+    fig, ax = plt.subplots(figsize=(6.0, 3.0))
+    mesh = ax.contourf(
+        segmentation.s,
+        segmentation.frequencies,
+        display_energy,
+        levels=32,
+        cmap="gray",
+    )
+    for boundary in segmentation.boundary_indices:
+        ax.axvline(segmentation.s[int(boundary)], linewidth=0.8, alpha=0.45)
+    if units and selected_id is not None:
+        unit = units[selected_id]
+        ax.axvspan(segmentation.s[unit.start_index], segmentation.s[unit.end_index], alpha=0.12)
+    ax.set_xlabel("along-centreline distance")
+    ax.set_ylabel("pseudo-frequency")
+    ax.set_title("Reach-scale CWT energy used for segmentation")
+    fig.colorbar(mesh, ax=ax, label="log1p energy" if log_energy else "energy")
+    fig.tight_layout()
+    return fig
+
+
+def plot_compound_spectrum_image(image: np.ndarray, unit_id: int | None = None):
+    """Plot the 64 x 64 model input image saved by the command-line workflow."""
+    fig, ax = plt.subplots(figsize=(3.0, 3.0))
+    ax.imshow(np.asarray(image), cmap="gray", vmin=0.0, vmax=1.0, origin="upper", aspect="auto")
+    title = "Model CWT image" if unit_id is None else f"Model CWT image: unit {unit_id}"
+    ax.set_title(title)
+    ax.set_xlabel("s pixel")
+    ax.set_ylabel("CWT-scale pixel")
     fig.tight_layout()
     return fig
 
@@ -216,14 +256,39 @@ with st.sidebar:
     st.header("Input centreline")
     uploaded = st.file_uploader("Upload centreline CSV/TXT/DAT", type=["csv", "txt", "dat"])
     fallback_width = st.number_input("Fallback channel width", min_value=0.0, value=100.0, step=10.0)
-    st.caption("Preferred CSV columns: x, y and optionally width.")
+    width_column_name = st.text_input(
+        "Width column name",
+        value="width",
+        help="For CSV files with headers. Leave blank to ignore width columns. Headerless TXT/DAT files use the 4th numeric column as width when present.",
+    )
+    use_file_width = st.checkbox("Use width values from file when available", value=True)
+    st.caption("Preferred CSV columns: x, y and optionally width. Headerless files may use x, y, z, width.")
 
 x = y = width_values = None
 width_source = fallback_width
 if uploaded is not None:
     try:
-        x, y, width_values = read_uploaded_centerline(uploaded)
-        width_source = width_values if width_values is not None else fallback_width
+        width_column = width_column_name.strip() or None
+        x, y, width_values = read_uploaded_centerline(uploaded, width_column=width_column)
+        if width_values is not None and use_file_width:
+            width_source = width_values
+        else:
+            width_source = fallback_width
+        with st.sidebar:
+            st.success(f"Loaded {len(x)} centreline points")
+            if width_values is not None:
+                st.write(
+                    "Width detected: "
+                    f"mean={float(np.nanmean(width_values)):.3g}, "
+                    f"min={float(np.nanmin(width_values)):.3g}, "
+                    f"max={float(np.nanmax(width_values)):.3g}"
+                )
+                if use_file_width:
+                    st.caption("Using file width values for extraction and normalisation.")
+                else:
+                    st.caption("Width values were found but the fallback constant width is being used.")
+            else:
+                st.info("No width values detected; using fallback channel width.")
     except Exception as exc:
         st.error(f"Could not read centreline file: {exc}")
         with st.expander("Technical details"):
@@ -380,6 +445,8 @@ with compound_tab:
             min_unit_widths = st.number_input("Minimum unit length / width", min_value=0.0, max_value=80.0, value=8.0, step=1.0)
         with col_d:
             valley_prominence = st.number_input("Valley prominence", min_value=0.0, max_value=0.5, value=0.05, step=0.01)
+        show_reach_cwt = st.checkbox("Show reach-scale CWT energy", value=True)
+        log_reach_cwt = st.checkbox("Use log scale for reach CWT", value=True)
 
         try:
             units, segmentation = extract_compound_bends(
@@ -402,13 +469,28 @@ with compound_tab:
 
             if units:
                 selected_unit = st.slider("Compound unit ID", 0, len(units) - 1, 0, key="compound_unit_id")
+                spectra = build_spectrum_images_for_compound_model(units)
                 col1, col2 = st.columns(2)
                 with col1:
                     st.pyplot(plot_compound_units_on_centerline(x, y, units, selected_unit), clear_figure=True)
                 with col2:
                     st.pyplot(plot_compound_segmentation_signal(segmentation, units, selected_unit), clear_figure=True)
 
-                spectra = build_spectrum_images_for_compound_model(units)
+                if show_reach_cwt:
+                    st.pyplot(
+                        plot_compound_reach_cwt(segmentation, units, selected_unit, log_energy=bool(log_reach_cwt)),
+                        clear_figure=True,
+                    )
+                    st.caption(
+                        "This is the reach-scale CWT energy matrix used to detect compound-unit boundaries. "
+                        "It is different from the 64 x 64 model image saved for each extracted unit."
+                    )
+
+                st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit), clear_figure=True)
+                st.caption(
+                    "The selected-unit model CWT image above matches the grayscale PNG/NPY spectra exported by "
+                    "the command-line compound workflow."
+                )
                 st.download_button("Download compound spectra NPY", _to_npy_download(spectra), "compound_spectra.npy", "application/octet-stream")
                 st.session_state["compound_units"] = units
                 st.session_state["compound_unit_table"] = unit_table
@@ -498,6 +580,13 @@ with reproducibility_tab:
         ```text
         models/compound_autoencoder.h5
         models/world_latent_cloud.npy
+        ```
+
+        Width handling:
+
+        ```text
+        CSV with headers: x, y, width
+        Headerless TXT/DAT: first column = x, second column = y, fourth column = width
         ```
 
         The full autoencoder is used as the default GUI model because it is the most
