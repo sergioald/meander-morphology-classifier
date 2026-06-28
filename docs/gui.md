@@ -87,3 +87,13 @@ The reach-scale CWT diagnostic is a display-only diagnostic. The maximum display
 ## Compound model CWT image convention
 
 The compound-bend model-input image is different from the reach-scale CWT diagnostic. The reach-scale CWT is a physical/diagnostic plot used to inspect segmentation. The compound model image is a resized 64 x 64 training-style array generated from one extracted unit's curvature signal. It follows the legacy training-image polarity: white background with dark high-energy CWT structures. The GUI enhanced preview is for visual inspection only; the exact 64 x 64 array is the image passed to the compound autoencoder.
+
+## Single-bend Zenodo model download
+
+The single-bend classifier tab can download the public Zenodo autoencoder directly into `models/Autoencoder_Meander_Bend.h5`. This file remains ignored by Git and should not be committed. The GUI verifies the downloaded file with the MD5 checksum stored in `meander_morphology.model`.
+
+
+## Compound model-image axes
+
+The compound model-image preview uses the same 64 x 64 array passed to the autoencoder. The horizontal axis is displayed as `S_bend/S_bend,max` to match the training plots. The vertical axis is a CWT scale index because the resized model input does not preserve the original physical frequency or period coordinate.
+

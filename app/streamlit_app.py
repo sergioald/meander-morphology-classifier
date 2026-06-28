@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+import hashlib
 from pathlib import Path
 import tempfile
 import traceback
@@ -21,7 +22,13 @@ from meander_morphology.compound_model import (
 from meander_morphology.cwt import cwt_energy_from_geometry, energy_to_image, spectrum_image_from_geometry
 from meander_morphology.io import read_centerline_table
 from meander_morphology.latent import encode_spectra
-from meander_morphology.model import build_encoder_from_autoencoder, load_autoencoder
+from meander_morphology.model import (
+    ZENODO_MODEL_FILENAME,
+    ZENODO_MODEL_MD5,
+    ZENODO_MODEL_URL,
+    build_encoder_from_autoencoder,
+    load_autoencoder,
+)
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +40,40 @@ def resolve_local_path(path_text: str | Path | None) -> Path:
     if path.is_absolute():
         return path
     return APP_ROOT / path
+
+
+
+def md5sum(path: Path) -> str:
+    """Return the MD5 checksum of a local file."""
+    h = hashlib.md5()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def download_single_autoencoder_from_zenodo(target: Path, *, force: bool = False) -> tuple[Path, str]:
+    """Download the public single-bend autoencoder from Zenodo into ``target``."""
+    import requests
+
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists() and not force:
+        return target, md5sum(target)
+
+    tmp_target = target.with_suffix(target.suffix + ".part")
+    with requests.get(ZENODO_MODEL_URL, stream=True, timeout=90) as response:
+        response.raise_for_status()
+        with tmp_target.open("wb") as handle:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    handle.write(chunk)
+    tmp_target.replace(target)
+
+    digest = md5sum(target)
+    if digest != ZENODO_MODEL_MD5:
+        raise RuntimeError(f"MD5 mismatch for {target.name}: got {digest}, expected {ZENODO_MODEL_MD5}")
+    return target, digest
 
 
 @st.cache_resource(show_spinner=False)
@@ -311,23 +352,31 @@ def _contrast_stretch_image(image: np.ndarray, *, low: float = 1.0, high: float 
 
 
 def plot_compound_spectrum_image(image: np.ndarray, unit_id: int | None = None, *, enhanced: bool = True):
-    """Plot the selected-unit CWT image.
+    """Plot the selected-unit CWT image used by the compound autoencoder.
 
-    The exact 64 x 64 array is the model input. The enhanced view is display-only
-    and is used in the GUI because the raw model array can be visually dark.
+    The exact 64 x 64 array is the model input. The enhanced view is display-only.
+    The horizontal axis is labelled as the normalised bend distance used in the
+    training plots; the vertical axis remains a model-image scale index because
+    the resized 64 x 64 array does not preserve a physical frequency/period axis.
     """
     arr = np.asarray(image, dtype=float)
     shown = _contrast_stretch_image(arr) if enhanced else arr
-    fig, ax = plt.subplots(figsize=(2.15, 2.15))
-    ax.imshow(shown, cmap="gray", vmin=0.0, vmax=1.0, origin="upper", aspect="auto")
+    fig, ax = plt.subplots(figsize=(2.35, 2.2))
+    n_scale, n_stream = shown.shape[:2]
+    ax.imshow(
+        shown,
+        cmap="gray",
+        vmin=0.0,
+        vmax=1.0,
+        origin="upper",
+        aspect="auto",
+        extent=(0.0, 1.0, float(n_scale), 0.0),
+    )
     prefix = "Enhanced model-input preview" if enhanced else "Exact 64 x 64 model input"
     title = prefix if unit_id is None else f"{prefix}: unit {unit_id}"
     ax.set_title(title, fontsize=9)
-    # Pixel axes are technically correct for the exact array, but they do not
-    # correspond to physical length/frequency axes. Use compact labels to avoid
-    # confusing the model input with the paper diagnostic plots.
-    ax.set_xlabel("streamwise pixel", fontsize=7)
-    ax.set_ylabel("scale pixel", fontsize=7)
+    ax.set_xlabel(r"$S_{bend}/S_{bend,max}$", fontsize=7)
+    ax.set_ylabel("CWT scale index", fontsize=7)
     ax.tick_params(labelsize=6)
     fig.tight_layout(pad=0.45)
     return fig
@@ -520,9 +569,33 @@ with single_tab:
         use_autoencoder = st.checkbox("Use single-bend Zenodo autoencoder", value=False, key="single_cluster_settings")
         model_path = st.text_input(
             "Single-bend autoencoder path",
-            value="models/Autoencoder_Meander_Bend.h5",
+            value=f"models/{ZENODO_MODEL_FILENAME}",
             disabled=not use_autoencoder,
         )
+        if use_autoencoder:
+            model_file_for_download = resolve_local_path(model_path)
+            st.caption(
+                "Public single-bend model source: Zenodo record 10.5281/zenodo.13913710. "
+                "The model file is ignored by Git and should stay local."
+            )
+            dl_col, force_col, status_col = st.columns([0.25, 0.25, 0.50])
+            with force_col:
+                force_single_download = st.checkbox("Overwrite local file", value=False, key="force_single_model_download")
+            with dl_col:
+                if st.button("Download single-bend model", key="download_single_model"):
+                    try:
+                        with st.spinner("Downloading single-bend autoencoder from Zenodo..."):
+                            saved_path, digest = download_single_autoencoder_from_zenodo(model_file_for_download, force=force_single_download)
+                        st.success(f"Downloaded {saved_path.name} to {saved_path.parent}. MD5: {digest}")
+                    except Exception as exc:
+                        st.error(f"Could not download the Zenodo single-bend model: {exc}")
+                        with st.expander("Technical details"):
+                            st.code(traceback.format_exc())
+            with status_col:
+                if model_file_for_download.exists():
+                    st.info(f"Local model found: {model_file_for_download}")
+                else:
+                    st.warning(f"Local model not found yet: {model_file_for_download}")
         latent_dim = st.number_input("Latent dimension", min_value=1, max_value=16, value=2, step=1, disabled=not use_autoencoder)
         n_clusters = st.number_input("Number of latent-space clusters", min_value=2, max_value=10, value=3, step=1, disabled=not use_autoencoder)
 
@@ -679,8 +752,8 @@ with compound_tab:
                     with exact_col:
                         st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=False), clear_figure=True)
                 st.caption(
-                    "The exact 64 x 64 array is passed to the compound autoencoder and now uses the legacy training-image polarity: white background, dark high-energy CWT structures. The enhanced preview is display-only. "
-                    "Pixel axes are used because this is a resized model input image, not the paper-style physical CWT diagnostic."
+                    "The exact 64 x 64 array is passed to the compound autoencoder and uses the legacy training-image polarity: white background, dark high-energy CWT structures. The enhanced preview is display-only. "
+                    "The horizontal axis is displayed as S_bend/S_bend,max to match the training plots. The vertical axis is a CWT scale index because the resized model input does not preserve a physical frequency/period axis."
                 )
                 st.download_button("Download compound spectra NPY", _to_npy_download(spectra), "compound_spectra.npy", "application/octet-stream")
                 st.session_state["compound_units"] = units
