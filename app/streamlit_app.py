@@ -194,8 +194,7 @@ def plot_compound_reach_cwt(
     units=None,
     selected_id: int | None = None,
     *,
-    max_display_frequency: float | None = 0.004,
-):
+    max_display_frequency: float | None = 0.004):
     """Compact four-panel reach diagnostic following the legacy research-plot layout."""
     energy = np.asarray(segmentation.energy, dtype=float)
     freqs = np.asarray(segmentation.frequencies, dtype=float)
@@ -209,28 +208,29 @@ def plot_compound_reach_cwt(
     valid = np.concatenate([ridge, trough]) if ridge.size and trough.size else np.arange(len(freqs))
     valid = valid[(valid >= 0) & (valid < len(freqs))]
     if valid.size:
-        lo = max(0, int(np.nanmin(valid)) - 2)
-        hi = min(len(freqs) - 1, int(np.nanmax(valid)) + 2)
+        lo = max(0, int(np.nanmin(valid)) - 4)
+        hi = min(len(freqs) - 1, int(np.nanmax(valid)) + 8)
     else:
         lo, hi = 0, len(freqs) - 1
-
-    # The paper/legacy diagnostic benefits from showing slightly more high-frequency
-    # content than the narrow ridge/trough corridor alone. This affects display only,
-    # not the segmentation algorithm or exported model images.
-    if max_display_frequency is not None and np.isfinite(max_display_frequency) and max_display_frequency > 0:
-        within = np.where(freqs <= float(max_display_frequency))[0]
-        if within.size:
-            lo = min(lo, int(within[0]))
-            hi = max(hi, int(within[-1]))
-
+    if max_display_frequency is not None and max_display_frequency > 0:
+        freq_limit_idx = np.where(freqs <= float(max_display_frequency))[0]
+        if freq_limit_idx.size:
+            lo = min(lo, int(freq_limit_idx[0]))
+            hi = max(hi, int(freq_limit_idx[-1]))
     if hi <= lo:
         lo, hi = 0, len(freqs) - 1
+    if max_display_frequency is not None and float(max_display_frequency) > 0:
+        display_candidates = np.where(freqs <= float(max_display_frequency))[0]
+        if display_candidates.size:
+            lo = min(lo, int(display_candidates[0]))
+            hi = max(hi, int(display_candidates[-1]))
+
     freq_slice = slice(lo, hi + 1)
 
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(
         4,
         1,
-        figsize=(6.2, 5.7),
+        figsize=(6.2, 5.6),
         height_ratios=[1.05, 0.8, 0.8, 2.0],
         sharex=False,
     )
@@ -238,24 +238,21 @@ def plot_compound_reach_cwt(
 
     ax1.pcolormesh(s, freqs[freq_slice], display_energy[freq_slice, :], shading="auto", cmap="jet")
     if ridge.size == s.size:
-        ax1.plot(s, freqs[np.clip(ridge, 0, len(freqs) - 1)], linewidth=1.2, label="ridge")
+        ax1.plot(s, freqs[np.clip(ridge, 0, len(freqs) - 1)], linewidth=1.1, label="ridge")
     if trough.size == s.size:
-        ax1.plot(s, freqs[np.clip(trough, 0, len(freqs) - 1)], linewidth=1.2, label="trough")
+        ax1.plot(s, freqs[np.clip(trough, 0, len(freqs) - 1)], linewidth=1.1, label="trough")
     for boundary in segmentation.boundary_indices:
-        ax1.axvline(segmentation.s[int(boundary)], linewidth=0.9, alpha=0.85)
-    if max_display_frequency is not None and max_display_frequency > 0:
-        ymin = float(np.nanmin(freqs[freq_slice]))
-        ymax = min(float(max_display_frequency), float(np.nanmax(freqs[freq_slice])))
-        if ymax > ymin:
-            ax1.set_ylim(ymin, ymax)
+        ax1.axvline(segmentation.s[int(boundary)], linewidth=0.8, alpha=0.85)
     ax1.set_ylabel("freq [1/unit]", fontsize=8)
     ax1.set_title("Reach-scale CWT diagnostic", fontsize=10)
     ax1.tick_params(labelsize=7)
+    if max_display_frequency is not None and max_display_frequency > 0:
+        ax1.set_ylim(freqs[freq_slice].min(), max(freqs[freq_slice].max(), float(max_display_frequency)))
 
-    ax2.plot(s, segmentation.normalised_energy, linewidth=1.2)
+    ax2.plot(s, segmentation.normalised_energy, linewidth=1.1)
     for boundary in segmentation.boundary_indices:
-        ax2.plot(segmentation.s[int(boundary)], segmentation.normalised_energy[int(boundary)], ".", ms=7)
-    ax2.axhline(y=0.15, linestyle="--", linewidth=0.9, alpha=0.7)
+        ax2.plot(segmentation.s[int(boundary)], segmentation.normalised_energy[int(boundary)], ".", ms=6)
+    ax2.axhline(y=0.15, linestyle="--", linewidth=0.8, alpha=0.7)
     ax2.set_ylabel("ΣE", fontsize=8)
     ax2.set_ylim(-0.04, 1.04)
     ax2.tick_params(labelsize=7)
@@ -272,24 +269,24 @@ def plot_compound_reach_cwt(
                 curvature[start : end + 1] = np.interp(idx, target, vals)
     if not np.isfinite(curvature).any():
         curvature = np.gradient(segmentation.normalised_energy, edge_order=1)
-    ax3.plot(s, curvature, linewidth=1.0)
+    ax3.plot(s, curvature, linewidth=0.9)
     for boundary in segmentation.boundary_indices:
-        ax3.plot(segmentation.s[int(boundary)], curvature[int(boundary)], ".", ms=6)
-    ax3.axhline(y=0.0, linestyle="--", linewidth=0.8, alpha=0.55)
+        ax3.plot(segmentation.s[int(boundary)], curvature[int(boundary)], ".", ms=5)
+    ax3.axhline(y=0.0, linestyle="--", linewidth=0.7, alpha=0.55)
     ax3.set_ylabel("curv", fontsize=8)
     ax3.set_xlabel("s", fontsize=8)
     ax3.tick_params(labelsize=7)
 
-    ax4.plot(x, y, linewidth=1.0)
+    ax4.plot(x, y, linewidth=0.9)
     if units:
         for unit in units:
-            alpha = 1.0 if unit.unit_id == selected_id else 0.45
-            lw = 2.0 if unit.unit_id == selected_id else 0.8
+            alpha = 1.0 if unit.unit_id == selected_id else 0.42
+            lw = 1.8 if unit.unit_id == selected_id else 0.75
             ax4.plot(unit.raw_x, unit.raw_y, linewidth=lw, alpha=alpha)
-            ax4.scatter([unit.raw_x[0], unit.raw_x[-1]], [unit.raw_y[0], unit.raw_y[-1]], s=18, alpha=alpha)
+            ax4.scatter([unit.raw_x[0], unit.raw_x[-1]], [unit.raw_y[0], unit.raw_y[-1]], s=14, alpha=alpha)
             if len(unit.raw_x):
                 mid = len(unit.raw_x) // 2
-                ax4.annotate(str(unit.unit_id), (unit.raw_x[mid], unit.raw_y[mid]), fontsize=7)
+                ax4.annotate(str(unit.unit_id), (unit.raw_x[mid], unit.raw_y[mid]), fontsize=6)
     ax4.axis("equal")
     ax4.set_xlabel("x", fontsize=8)
     ax4.set_ylabel("y", fontsize=8)
@@ -298,53 +295,82 @@ def plot_compound_reach_cwt(
     fig.tight_layout(pad=0.55)
     return fig
 
-def plot_compound_spectrum_image(image: np.ndarray, unit_id: int | None = None, *, enhanced: bool = False):
-    """Plot the 64 x 64 model input image, optionally with display-only contrast enhancement."""
+
+def _contrast_stretch_image(image: np.ndarray, *, low: float = 1.0, high: float = 99.5, gamma: float = 0.65) -> np.ndarray:
+    """Return a display-only contrast-stretched copy of a 64 x 64 spectrum image."""
     arr = np.asarray(image, dtype=float)
-    shown = arr.copy()
-    title_prefix = "Enhanced preview" if enhanced else "Exact model input"
-    if enhanced:
-        finite = np.isfinite(shown)
-        if finite.any():
-            lo, hi = np.nanpercentile(shown[finite], [1, 99.5])
-            if hi > lo:
-                shown = np.clip((shown - lo) / (hi - lo), 0.0, 1.0)
-            shown = np.sqrt(np.clip(shown, 0.0, 1.0))
+    finite = np.isfinite(arr)
+    if not finite.any():
+        return np.zeros_like(arr, dtype=float)
+    lo = float(np.nanpercentile(arr[finite], low))
+    hi = float(np.nanpercentile(arr[finite], high))
+    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+        return np.clip(arr, 0.0, 1.0)
+    out = np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
+    return np.power(out, gamma)
+
+
+def plot_compound_spectrum_image(image: np.ndarray, unit_id: int | None = None, *, enhanced: bool = True):
+    """Plot the selected-unit CWT image.
+
+    The exact 64 x 64 array is the model input. The enhanced view is display-only
+    and is used in the GUI because the raw model array can be visually dark.
+    """
+    arr = np.asarray(image, dtype=float)
+    shown = _contrast_stretch_image(arr) if enhanced else arr
     fig, ax = plt.subplots(figsize=(2.15, 2.15))
     ax.imshow(shown, cmap="gray", vmin=0.0, vmax=1.0, origin="upper", aspect="auto")
-    title = title_prefix if unit_id is None else f"{title_prefix}: unit {unit_id}"
-    ax.set_title(title, fontsize=8.5)
-    ax.set_xlabel("s pixel", fontsize=7)
+    prefix = "Enhanced model-input preview" if enhanced else "Exact 64 x 64 model input"
+    title = prefix if unit_id is None else f"{prefix}: unit {unit_id}"
+    ax.set_title(title, fontsize=9)
+    # Pixel axes are technically correct for the exact array, but they do not
+    # correspond to physical length/frequency axes. Use compact labels to avoid
+    # confusing the model input with the paper diagnostic plots.
+    ax.set_xlabel("streamwise pixel", fontsize=7)
     ax.set_ylabel("scale pixel", fontsize=7)
-    ax.tick_params(labelsize=6.5)
-    fig.tight_layout(pad=0.35)
+    ax.tick_params(labelsize=6)
+    fig.tight_layout(pad=0.45)
     return fig
 
-def plot_compound_latent(table: pd.DataFrame, background_latent: np.ndarray | None = None, selected_id: int | None = None):
-    """Plot detected compound units in the trained 2-D latent space."""
-    fig, ax = plt.subplots(figsize=(3.8, 3.2))
+
+def plot_compound_latent(
+    table: pd.DataFrame,
+    background_latent: np.ndarray | None = None,
+    selected_id: int | None = None,
+    *,
+    show_unit_labels: bool = True,
+):
+    fig, ax = plt.subplots(figsize=(3.6, 3.0))
     if background_latent is not None and background_latent.ndim == 2 and background_latent.shape[1] >= 2:
-        ax.scatter(background_latent[:, 0], background_latent[:, 1], s=1.2, alpha=0.08, label="reference meander cloud")
+        ax.scatter(
+            background_latent[:, 0],
+            background_latent[:, 1],
+            s=1.2,
+            alpha=0.08,
+            label="reference meander cloud",
+        )
     if {"latent_1", "latent_2"}.issubset(table.columns):
-        ax.scatter(table["latent_1"], table["latent_2"], s=36, alpha=0.88, label="detected meander units")
-        for _, row in table.iterrows():
-            ax.annotate(
-                str(int(row.get("unit_id", 0))),
-                (row["latent_1"], row["latent_2"]),
-                fontsize=6.5,
-                xytext=(3, 3),
-                textcoords="offset points",
-            )
+        ax.scatter(table["latent_1"], table["latent_2"], s=28, label="detected meander units")
+        if show_unit_labels:
+            for _, row in table.iterrows():
+                ax.annotate(
+                    str(int(row.get("unit_id", 0))),
+                    (row["latent_1"], row["latent_2"]),
+                    fontsize=7,
+                    xytext=(3, 3),
+                    textcoords="offset points",
+                )
         if selected_id is not None and selected_id < len(table):
             row = table.iloc[selected_id]
-            ax.scatter([row["latent_1"]], [row["latent_2"]], marker="x", s=95, linewidths=2.0, label="selected unit")
+            ax.scatter([row["latent_1"]], [row["latent_2"]], marker="x", s=75, linewidths=2, label="selected unit")
     ax.set_xlabel("latent_1", fontsize=8)
     ax.set_ylabel("latent_2", fontsize=8)
     ax.set_title("Compound-bend latent space", fontsize=10)
+    ax.tick_params(labelsize=8)
     ax.legend(loc="best", fontsize=7)
-    ax.tick_params(labelsize=7)
     fig.tight_layout(pad=0.5)
     return fig
+
 
 def build_spectrum_images_for_single_model(bends) -> np.ndarray:
     images = []
@@ -488,7 +514,8 @@ with single_tab:
                 key="single_endpoint_tolerance",
             )
 
-        use_autoencoder = st.checkbox("Use single-bend Zenodo autoencoder", value=False)
+        st.markdown("**Optional single-bend latent-space clustering**")
+        use_autoencoder = st.checkbox("Use single-bend Zenodo autoencoder", value=False, key="single_cluster_settings")
         model_path = st.text_input(
             "Single-bend autoencoder path",
             value="models/Autoencoder_Meander_Bend.h5",
@@ -636,13 +663,22 @@ with compound_tab:
                     )
 
                 img_exact_col, img_preview_col, _ = st.columns([0.23, 0.23, 0.54])
-                with img_exact_col:
-                    st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=False), clear_figure=True)
-                with img_preview_col:
-                    st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=True), clear_figure=True)
+                st.markdown("**Selected-unit CWT image used by the compound model**")
                 st.caption(
-                    "The exact 64 x 64 image is the array passed to the compound autoencoder. "
-                    "The enhanced preview uses display-only contrast stretching to make weak spectral structure easier to see."
+                    "The enhanced preview is shown by default because the exact 64 x 64 model array can look very dark. "
+                    "The exact array is still available below for reproducibility checks."
+                )
+                preview_col, _ = st.columns([0.30, 0.70])
+                with preview_col:
+                    st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=True), clear_figure=True)
+                show_exact_model_input = st.checkbox("Show exact 64 x 64 model input array", value=False)
+                if show_exact_model_input:
+                    exact_col, _ = st.columns([0.30, 0.70])
+                    with exact_col:
+                        st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=False), clear_figure=True)
+                st.caption(
+                    "The exact 64 x 64 array is passed to the compound autoencoder. The enhanced preview is display-only. "
+                    "Pixel axes are used because this is a resized model input image, not the paper-style physical CWT diagnostic."
                 )
                 st.download_button("Download compound spectra NPY", _to_npy_download(spectra), "compound_spectra.npy", "application/octet-stream")
                 st.session_state["compound_units"] = units
@@ -719,9 +755,10 @@ with latent_tab:
                 except Exception:
                     background = None
             selected = st.slider("Highlight latent unit", 0, len(latent_table) - 1, 0, key="latent_selected_unit")
+            show_compound_latent_labels = st.checkbox("Show unit numbers in latent-space plot", value=True)
             lat_col, _ = st.columns([0.56, 0.44])
             with lat_col:
-                st.pyplot(plot_compound_latent(latent_table, background_latent=background, selected_id=selected), clear_figure=True)
+                st.pyplot(plot_compound_latent(latent_table, background_latent=background, selected_id=selected, show_unit_labels=show_compound_latent_labels), clear_figure=True)
 
 with reproducibility_tab:
     st.subheader("Reproducibility and Zenodo files")

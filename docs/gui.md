@@ -73,3 +73,12 @@ The GUI separates display diagnostics from model inputs:
 - The compound latent-space plot uses a simple legend: reference meander cloud, detected meander units, and selected unit. It does not use `n_lobes` as the colour scale by default.
 - The single-bend classifier shows a visible latent-space cluster plot and cluster-size table when the optional single-bend autoencoder is available locally.
 
+
+
+## GUI display notes
+
+The compound latent-space panel can optionally annotate detected units with their unit numbers. The reference cloud is shown only as context, while the selected detected unit is highlighted separately.
+
+The compound CWT image shown in the workflow tab has two display modes. The enhanced preview is intended for visual inspection. The exact 64 x 64 image is the reproducible model input passed to the compound autoencoder; it uses pixel axes because it is a resized array rather than a physical CWT diagnostic figure.
+
+The reach-scale CWT diagnostic is a display-only diagnostic. The maximum displayed frequency can be adjusted in the GUI without changing the underlying compound segmentation.
