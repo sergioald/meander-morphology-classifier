@@ -771,12 +771,6 @@ with compound_tab:
                 preview_col, _ = st.columns([0.42, 0.58])
                 with preview_col:
                     st.pyplot(plot_compound_training_preview(preview_bundle, selected_unit), clear_figure=True)
-
-                show_exact_model_input = st.checkbox("Show exact 64 x 64 model input array", value=False)
-                if show_exact_model_input:
-                    exact_col, _ = st.columns([0.30, 0.70])
-                    with exact_col:
-                        st.pyplot(plot_compound_spectrum_image(preview_bundle["model_image"], selected_unit, enhanced=False), clear_figure=True)
                 st.caption(
                     "The training-style plot is for interpretation and uses the physical/legacy period axis. "
                     "The hidden exact 64 x 64 array is the resized autoencoder input, so it is the only view that should use pixel-like axes."

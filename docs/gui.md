@@ -106,7 +106,7 @@ The compound workflow displays a training-style CWT preview by default. This pre
 - y-axis: `l = 1 / frequency`
 - plotting style: `contourf(..., cmap="binary", vmin=mean + std)`
 
-The exact 64 x 64 model input remains available through the **Show exact 64 x 64 model input array** checkbox.
+The exact 64 x 64 model input is not displayed in the GUI; export `compound_spectra.npy` for reproducibility checks.
 
 ## Exact compound autoencoder input
 
@@ -115,3 +115,13 @@ Matplotlib `contourf(..., cmap="binary", vmin=mean+std)` image used in the
 training scripts and resizing that raster to 64 x 64. The physical/legacy axes
 are shown only in the training-style preview. The hidden exact model-input view
 is axis-free because the autoencoder was trained on images, not on axes.
+
+
+## Compound model-input display policy
+
+The GUI does not display the exact 64 x 64 compound autoencoder input by default.
+That array is a resized/rasterised model artifact and is easy to misinterpret as a
+scientific CWT figure. The GUI instead displays the training-style CWT preview
+with labelled axes (`S_bend / S_bend,max` and `l = 1 / frequency`). The internal
+model arrays can still be exported through `compound_spectra.npy` for
+reproducibility.
