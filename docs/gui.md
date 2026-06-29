@@ -125,3 +125,7 @@ scientific CWT figure. The GUI instead displays the training-style CWT preview
 with labelled axes (`S_bend / S_bend,max` and `l = 1 / frequency`). The internal
 model arrays can still be exported through `compound_spectra.npy` for
 reproducibility.
+
+## Compound latent-space unit labels
+
+The compound latent-space plot keeps the **Show unit numbers in latent-space plot** option, but the default is now **off**. This keeps the plot readable when several detected units overlap near the same latent-space location. Turn the option on only when unit IDs are needed for debugging or screenshots.

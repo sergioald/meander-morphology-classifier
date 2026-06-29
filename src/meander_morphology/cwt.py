@@ -578,6 +578,8 @@ def legacy_compound_training_preview_from_curvature(
 
 def save_spectrum_image(path: str, image: np.ndarray) -> None:
     """Save a spectrum image as PNG."""
+    import matplotlib
+    matplotlib.use("Agg", force=True)
     import matplotlib.pyplot as plt
 
     plt.imsave(path, image, cmap="gray", vmin=0.0, vmax=1.0)
@@ -698,6 +700,8 @@ def _render_training_contour_to_image(
     image_size: int = 64,
 ) -> np.ndarray:
     """Rasterise the original axis-free contourf training figure to 64 x 64."""
+    import matplotlib
+    matplotlib.use("Agg", force=True)
     import matplotlib.pyplot as plt
 
     cwt_matrix = np.asarray(cwt_matrix, dtype=float)

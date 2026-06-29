@@ -850,7 +850,7 @@ with latent_tab:
                 except Exception:
                     background = None
             selected = st.slider("Highlight latent unit", 0, len(latent_table) - 1, 0, key="latent_selected_unit")
-            show_compound_latent_labels = st.checkbox("Show unit numbers in latent-space plot", value=True)
+            show_compound_latent_labels = st.checkbox("Show unit numbers in latent-space plot", value=False)
             lat_col, _ = st.columns([0.56, 0.44])
             with lat_col:
                 st.pyplot(plot_compound_latent(latent_table, background_latent=background, selected_id=selected, show_unit_labels=show_compound_latent_labels), clear_figure=True)

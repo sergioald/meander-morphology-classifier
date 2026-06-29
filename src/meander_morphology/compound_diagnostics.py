@@ -180,6 +180,8 @@ def save_diagnostic_latent_plot(
     title: str = "Compound-bend latent diagnostics",
 ) -> Path:
     """Save a labelled latent-space diagnostic plot from a latent CSV/table."""
+    import matplotlib
+    matplotlib.use("Agg", force=True)
     import matplotlib.pyplot as plt
 
     table = build_latent_diagnostics(table_or_path, background_latent_path=background_latent_path)
