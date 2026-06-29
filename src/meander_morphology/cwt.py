@@ -439,6 +439,143 @@ def legacy_compound_training_image_from_curvature(
     resized = zoom(image, zoom_factors, order=1)
     return np.clip(resized, 0.0, 1.0).astype("float32")
 
+def legacy_compound_training_preview_from_curvature(
+    curvature: np.ndarray,
+    *,
+    image_size: int = 64,
+    cut_points: int = 501,
+    wavelet: str = "mexh",
+    dt: float = 0.002,
+    contour_levels: int = 8,
+    smooth: bool = True,
+) -> dict[str, np.ndarray]:
+    """Return compound CWT data using the original training-plot convention.
+
+    Returns
+    -------
+    dict
+        ``cwt_matrix`` is the full-resolution matrix to plot with
+        ``contourf(s_axis, l_axis, cwt_matrix, cmap="binary",
+        vmin=mean+std)``. ``model_image`` is the exact 64 x 64 array passed to
+        the compound autoencoder.
+    """
+    if pywt is None:  # pragma: no cover
+        raise ImportError("PyWavelets is required to build compound training-style CWT previews.")
+
+    c = np.asarray(curvature, dtype=float).ravel()
+    c = c[np.isfinite(c)]
+    if c.size < 4:
+        raise ValueError("curvature must contain at least four finite values")
+
+    cut_points = int(cut_points)
+    image_size = int(image_size)
+    if cut_points < 32:
+        raise ValueError("cut_points must be at least 32")
+    if image_size < 8:
+        raise ValueError("image_size must be at least 8")
+
+    source = np.linspace(0.0, 1.0, c.size)
+    target = np.linspace(0.0, 1.0, cut_points)
+    try:
+        from scipy.interpolate import make_interp_spline
+        if np.unique(source).size >= 4 and c.size >= 4:
+            c = make_interp_spline(source, c)(target)
+        else:
+            c = np.interp(target, source, c)
+    except Exception:
+        c = np.interp(target, source, c)
+
+    if smooth and c.size >= 9:
+        window = min(27, c.size if c.size % 2 == 1 else c.size - 1)
+        window = max(9, window)
+        if window % 2 == 0:
+            window -= 1
+        if window >= 5:
+            c = savgol_filter(c, window, min(3, window - 2), mode="interp")
+
+    xx = target
+    yy = c
+    if xx[-1] < xx[0]:
+        xx = np.flip(xx)
+        yy = np.flip(yy)
+
+    xi = xx - xx[0]
+    yi = yy - yy[0]
+    xf = xx - xx[-1]
+    yf = yy - yy[-1]
+
+    xxi1 = -xi + xx[0]
+    yyi1 = -yi + yy[0]
+    xxf1 = -xf + xx[-1]
+    yyf1 = -yf + yy[-1]
+
+    if xxf1[-1] < xxf1[0]:
+        xxf1 = np.flip(xxf1)
+        yyf1 = np.flip(yyf1)
+    if xxi1[-1] < xxi1[0]:
+        xxi1 = np.flip(xxi1)
+        yyi1 = np.flip(yyi1)
+
+    s_full = np.concatenate((xxi1[:-1], xx, xxf1[1:]), axis=0)
+    c_full = np.concatenate((yyi1[:-1], yy, yyf1[1:]), axis=0)
+
+    if smooth and c_full.size >= 16:
+        try:
+            c_full = _safe_denoise(c_full, wavelet="db17", sigma_factor=1.0)
+        except Exception:
+            pass
+        window = min(27, c_full.size if c_full.size % 2 == 1 else c_full.size - 1)
+        if window >= 5:
+            c_full = savgol_filter(c_full, window, min(3, window - 2), mode="interp")
+
+    waveletname = wavelet
+    fs = 1.0 / float(dt)
+    frequencies = np.arange(1, cut_points - 1, dtype=float) / fs
+    scale = pywt.frequency2scale(waveletname, frequencies)
+
+    cwt_matrix, freqs = pywt.cwt(c_full, scales=scale, wavelet=waveletname, sampling_period=float(dt))
+    cwt_matrix = np.abs(cwt_matrix)
+
+    if smooth:
+        try:
+            cwt_matrix = _safe_denoise(cwt_matrix, wavelet="db17", sigma_factor=1.0)
+        except Exception:
+            pass
+
+    start = cut_points - 1
+    stop = start + cut_points
+    s_axis = s_full[start:stop]
+    cwt_matrix = cwt_matrix[:, start:stop]
+    l_axis = 1.0 / freqs
+
+    finite = np.isfinite(cwt_matrix)
+    if finite.any():
+        vmin = float(np.nanmean(cwt_matrix[finite]) + np.nanstd(cwt_matrix[finite]))
+        vmax = float(np.nanmax(cwt_matrix[finite]))
+        if np.isfinite(vmax) and vmax > vmin:
+            scaled = np.clip((cwt_matrix - vmin) / (vmax - vmin), 0.0, 1.0)
+        else:
+            scaled = np.zeros_like(cwt_matrix, dtype=float)
+    else:
+        scaled = np.zeros_like(cwt_matrix, dtype=float)
+
+    model_image_full = 1.0 - scaled
+    if contour_levels and int(contour_levels) > 1:
+        levels = int(contour_levels)
+        model_image_full = np.round(model_image_full * (levels - 1)) / float(levels - 1)
+
+    zoom_factors = (image_size / model_image_full.shape[0], image_size / model_image_full.shape[1])
+    model_image = zoom(model_image_full, zoom_factors, order=1)
+
+    return {
+        "cwt_matrix": np.asarray(cwt_matrix, dtype="float32"),
+        "s_axis": np.asarray(s_axis, dtype="float32"),
+        "l_axis": np.asarray(l_axis, dtype="float32"),
+        "model_image": np.clip(model_image, 0.0, 1.0).astype("float32"),
+    }
+
+
+
 def save_spectrum_image(path: str, image: np.ndarray) -> None:
     """Save a spectrum image as PNG."""
     import matplotlib.pyplot as plt

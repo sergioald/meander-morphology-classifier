@@ -382,6 +382,35 @@ def plot_compound_spectrum_image(image: np.ndarray, unit_id: int | None = None, 
     return fig
 
 
+def plot_compound_training_preview(preview_bundle: dict[str, np.ndarray], unit_id: int | None = None):
+    """Plot the human-readable compound CWT using the research-script convention."""
+    cwt_matrix = np.asarray(preview_bundle["cwt_matrix"], dtype=float)
+    s_axis = np.asarray(preview_bundle["s_axis"], dtype=float)
+    l_axis = np.asarray(preview_bundle["l_axis"], dtype=float)
+
+    fig, ax = plt.subplots(figsize=(3.2, 2.7))
+    finite = np.isfinite(cwt_matrix)
+    vmin = float(np.nanmean(cwt_matrix[finite]) + np.nanstd(cwt_matrix[finite])) if finite.any() else None
+
+    ax.contourf(
+        s_axis,
+        l_axis,
+        cwt_matrix,
+        levels=8,
+        extend="both",
+        cmap="binary",
+        vmin=vmin,
+    )
+    title = "Training-style compound CWT" if unit_id is None else f"Training-style compound CWT: unit {unit_id}"
+    ax.set_title(title, fontsize=9)
+    ax.set_xlabel(r"$S_{bend} / S_{bend,max}$", fontsize=7)
+    ax.set_ylabel("l = 1 / frequency", fontsize=7)
+    ax.set_xlim(0.0, 1.0)
+    ax.tick_params(labelsize=6)
+    fig.tight_layout(pad=0.45)
+    return fig
+
+
 def plot_compound_latent(
     table: pd.DataFrame,
     background_latent: np.ndarray | None = None,
@@ -442,6 +471,14 @@ def build_spectrum_images_for_compound_model(units, *, image_size: int = 64) -> 
     for unit in units:
         images.append(legacy_compound_training_image_from_curvature(unit.curvature, image_size=image_size))
     return np.asarray(images, dtype="float32")
+
+def build_compound_training_preview(unit, *, image_size: int = 64) -> dict[str, np.ndarray]:
+    """Return raw training-style CWT and exact model image for one compound unit."""
+    from meander_morphology.cwt import legacy_compound_training_preview_from_curvature
+
+    return legacy_compound_training_preview_from_curvature(unit.curvature, image_size=image_size)
+
+
 
 st.set_page_config(page_title="Meander Morphology Classifier", layout="wide")
 st.title("Meander Morphology Classifier")
@@ -740,20 +777,23 @@ with compound_tab:
                 img_exact_col, img_preview_col, _ = st.columns([0.23, 0.23, 0.54])
                 st.markdown("**Selected-unit CWT image used by the compound model**")
                 st.caption(
-                    "The enhanced preview is shown by default because the exact 64 x 64 model array can look very dark. "
-                    "The exact array is still available below for reproducibility checks."
+                    "The default plot now follows the original compound-training script: "
+                    "CWT is shown with horizontal axis $S_{bend} / S_{bend,max}$ and vertical axis $l = 1 / frequency$. "
+                    "The exact 64 x 64 model input is available below only for reproducibility."
                 )
-                preview_col, _ = st.columns([0.30, 0.70])
+                preview_bundle = build_compound_training_preview(units[selected_unit])
+                preview_col, _ = st.columns([0.42, 0.58])
                 with preview_col:
-                    st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=True), clear_figure=True)
+                    st.pyplot(plot_compound_training_preview(preview_bundle, selected_unit), clear_figure=True)
+
                 show_exact_model_input = st.checkbox("Show exact 64 x 64 model input array", value=False)
                 if show_exact_model_input:
                     exact_col, _ = st.columns([0.30, 0.70])
                     with exact_col:
-                        st.pyplot(plot_compound_spectrum_image(spectra[selected_unit], selected_unit, enhanced=False), clear_figure=True)
+                        st.pyplot(plot_compound_spectrum_image(preview_bundle["model_image"], selected_unit, enhanced=False), clear_figure=True)
                 st.caption(
-                    "The exact 64 x 64 array is passed to the compound autoencoder and uses the legacy training-image polarity: white background, dark high-energy CWT structures. The enhanced preview is display-only. "
-                    "The horizontal axis is displayed as S_bend/S_bend,max to match the training plots. The vertical axis is a CWT scale index because the resized model input does not preserve a physical frequency/period axis."
+                    "The training-style plot is for interpretation and uses the physical/legacy period axis. "
+                    "The hidden exact 64 x 64 array is the resized autoencoder input, so it is the only view that should use pixel-like axes."
                 )
                 st.download_button("Download compound spectra NPY", _to_npy_download(spectra), "compound_spectra.npy", "application/octet-stream")
                 st.session_state["compound_units"] = units

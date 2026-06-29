@@ -97,3 +97,13 @@ The single-bend classifier tab can download the public Zenodo autoencoder direct
 
 The compound model-image preview uses the same 64 x 64 array passed to the autoencoder. The horizontal axis is displayed as `S_bend/S_bend,max` to match the training plots. The vertical axis is a CWT scale index because the resized model input does not preserve the original physical frequency or period coordinate.
 
+
+## Compound CWT preview
+
+The compound workflow displays a training-style CWT preview by default. This preview uses the same convention as the research scripts:
+
+- x-axis: `S_bend / S_bend,max`
+- y-axis: `l = 1 / frequency`
+- plotting style: `contourf(..., cmap="binary", vmin=mean + std)`
+
+The exact 64 x 64 model input remains available through the **Show exact 64 x 64 model input array** checkbox.
