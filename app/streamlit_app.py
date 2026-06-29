@@ -352,33 +352,19 @@ def _contrast_stretch_image(image: np.ndarray, *, low: float = 1.0, high: float 
 
 
 def plot_compound_spectrum_image(image: np.ndarray, unit_id: int | None = None, *, enhanced: bool = True):
-    """Plot the selected-unit CWT image used by the compound autoencoder.
+    """Plot the exact 64 x 64 rasterised compound-autoencoder input.
 
-    The exact 64 x 64 array is the model input. The enhanced view is display-only.
-    The horizontal axis is labelled as the normalised bend distance used in the
-    training plots; the vertical axis remains a model-image scale index because
-    the resized 64 x 64 array does not preserve a physical frequency/period axis.
+    This view intentionally has no physical axes because the training images were
+    saved as axis-free contour PNGs before being passed to the autoencoder.
     """
     arr = np.asarray(image, dtype=float)
     shown = _contrast_stretch_image(arr) if enhanced else arr
-    fig, ax = plt.subplots(figsize=(2.35, 2.2))
-    n_scale, n_stream = shown.shape[:2]
-    ax.imshow(
-        shown,
-        cmap="gray",
-        vmin=0.0,
-        vmax=1.0,
-        origin="upper",
-        aspect="auto",
-        extent=(0.0, 1.0, float(n_scale), 0.0),
-    )
-    prefix = "Enhanced model-input preview" if enhanced else "Exact 64 x 64 model input"
-    title = prefix if unit_id is None else f"{prefix}: unit {unit_id}"
-    ax.set_title(title, fontsize=9)
-    ax.set_xlabel(r"$S_{bend}/S_{bend,max}$", fontsize=7)
-    ax.set_ylabel("CWT scale index", fontsize=7)
-    ax.tick_params(labelsize=6)
-    fig.tight_layout(pad=0.45)
+    fig, ax = plt.subplots(figsize=(2.0, 2.0))
+    ax.imshow(shown, cmap="gray", vmin=0.0, vmax=1.0, origin="upper", aspect="equal")
+    title = "Exact 64 x 64 autoencoder input" if unit_id is None else f"Exact 64 x 64 autoencoder input: unit {unit_id}"
+    ax.set_title(title, fontsize=8)
+    ax.set_axis_off()
+    fig.tight_layout(pad=0.25)
     return fig
 
 

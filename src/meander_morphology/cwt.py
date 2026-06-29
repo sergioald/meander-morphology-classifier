@@ -581,3 +581,204 @@ def save_spectrum_image(path: str, image: np.ndarray) -> None:
     import matplotlib.pyplot as plt
 
     plt.imsave(path, image, cmap="gray", vmin=0.0, vmax=1.0)
+
+# ---------------------------------------------------------------------------
+# Compound autoencoder training-image compatibility helpers
+# ---------------------------------------------------------------------------
+# These definitions intentionally appear late in the module. They override older
+# experimental helpers above and reproduce the original training-file convention:
+# a Matplotlib contourf image saved with axis_off, then resized to 64 x 64.
+
+def _compound_training_cwt_data_from_curvature(
+    curvature: np.ndarray,
+    *,
+    cut_points: int = 501,
+    wavelet: str = "mexh",
+    dt: float = 0.002,
+    smooth: bool = True,
+) -> dict[str, np.ndarray]:
+    """Build the full-resolution compound CWT matrix used for training plots."""
+    if pywt is None:  # pragma: no cover
+        raise ImportError("PyWavelets is required to build compound training-style CWT images.")
+
+    c = np.asarray(curvature, dtype=float).ravel()
+    c = c[np.isfinite(c)]
+    if c.size < 4:
+        raise ValueError("curvature must contain at least four finite values")
+
+    cut_points = int(cut_points)
+    if cut_points < 32:
+        raise ValueError("cut_points must be at least 32")
+
+    # Original workflow: interpolate each extracted unit to S/Smax in 501 points.
+    source = np.linspace(0.0, 1.0, c.size)
+    target = np.linspace(0.0, 1.0, cut_points)
+    try:
+        from scipy.interpolate import make_interp_spline
+
+        if np.unique(source).size >= 4 and c.size >= 4:
+            c = make_interp_spline(source, c)(target)
+        else:
+            c = np.interp(target, source, c)
+    except Exception:
+        c = np.interp(target, source, c)
+
+    if smooth and c.size >= 9:
+        window = min(27, c.size if c.size % 2 == 1 else c.size - 1)
+        window = max(9, window)
+        if window % 2 == 0:
+            window -= 1
+        if window >= 5:
+            c = savgol_filter(c, window, min(3, window - 2), mode="interp")
+
+    # Original workflow mirrors the normalised curvature signal before CWT.
+    xx = target
+    yy = c
+    if xx[-1] < xx[0]:
+        xx = np.flip(xx)
+        yy = np.flip(yy)
+
+    xi = xx - xx[0]
+    yi = yy - yy[0]
+    xf = xx - xx[-1]
+    yf = yy - yy[-1]
+
+    xxi1 = -xi + xx[0]
+    yyi1 = -yi + yy[0]
+    xxf1 = -xf + xx[-1]
+    yyf1 = -yf + yy[-1]
+
+    if xxf1[-1] < xxf1[0]:
+        xxf1 = np.flip(xxf1)
+        yyf1 = np.flip(yyf1)
+    if xxi1[-1] < xxi1[0]:
+        xxi1 = np.flip(xxi1)
+        yyi1 = np.flip(yyi1)
+
+    s_full = np.concatenate((xxi1[:-1], xx, xxf1[1:]), axis=0)
+    c_full = np.concatenate((yyi1[:-1], yy, yyf1[1:]), axis=0)
+
+    if smooth and c_full.size >= 16:
+        try:
+            c_full = _safe_denoise(c_full, wavelet="db17", sigma_factor=1.0)
+        except Exception:
+            pass
+        window = min(27, c_full.size if c_full.size % 2 == 1 else c_full.size - 1)
+        if window >= 5:
+            c_full = savgol_filter(c_full, window, min(3, window - 2), mode="interp")
+
+    fs = 1.0 / float(dt)
+    frequencies = np.arange(1, cut_points - 1, dtype=float) / fs
+    scales = pywt.frequency2scale(wavelet, frequencies)
+
+    cwt_matrix, freqs = pywt.cwt(c_full, scales=scales, wavelet=wavelet, sampling_period=float(dt))
+    cwt_matrix = np.abs(cwt_matrix)
+
+    try:
+        cwt_matrix = _safe_denoise(cwt_matrix, wavelet="db17", sigma_factor=1.0)
+    except Exception:
+        pass
+
+    # Original crop: c = c[500:1001], s = s[500:1001], cwt = cwt[:,500:1001].
+    start = cut_points - 1
+    stop = start + cut_points
+
+    return {
+        "cwt_matrix": np.asarray(cwt_matrix[:, start:stop], dtype="float32"),
+        "s_axis": np.asarray(s_full[start:stop], dtype="float32"),
+        "l_axis": np.asarray(1.0 / freqs, dtype="float32"),
+    }
+
+
+def _render_training_contour_to_image(
+    s_axis: np.ndarray,
+    l_axis: np.ndarray,
+    cwt_matrix: np.ndarray,
+    *,
+    image_size: int = 64,
+) -> np.ndarray:
+    """Rasterise the original axis-free contourf training figure to 64 x 64."""
+    import matplotlib.pyplot as plt
+
+    cwt_matrix = np.asarray(cwt_matrix, dtype=float)
+    finite = np.isfinite(cwt_matrix)
+    vmin = float(np.nanmean(cwt_matrix[finite]) + np.nanstd(cwt_matrix[finite])) if finite.any() else None
+
+    figprops = dict(figsize=(256 / 72, 256 / 72), dpi=72, frameon=False)
+    fig = plt.figure(**figprops)
+    ax = plt.Axes(fig, [0.0, 0.0, 1.0, 1.0])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+    ax.contourf(
+        s_axis,
+        l_axis,
+        cwt_matrix,
+        extend="both",
+        cmap="binary",
+        vmin=vmin,
+    )
+    fig.canvas.draw()
+    rgba = np.asarray(fig.canvas.buffer_rgba(), dtype=np.float32) / 255.0
+    plt.close(fig)
+
+    # binary cmap produces greyscale RGB; average RGB and ignore alpha.
+    image = rgba[..., :3].mean(axis=2)
+    image_size = int(image_size)
+    if image.shape != (image_size, image_size):
+        zoom_factors = (image_size / image.shape[0], image_size / image.shape[1])
+        image = zoom(image, zoom_factors, order=1)
+    return np.clip(image, 0.0, 1.0).astype("float32")
+
+
+def legacy_compound_training_preview_from_curvature(
+    curvature: np.ndarray,
+    *,
+    image_size: int = 64,
+    cut_points: int = 501,
+    wavelet: str = "mexh",
+    dt: float = 0.002,
+    contour_levels: int = 8,
+    smooth: bool = True,
+) -> dict[str, np.ndarray]:
+    """Return raw CWT axes and exact rasterised autoencoder input.
+
+    ``model_image`` is produced by rendering the same axis-free ``contourf``
+    figure used by the training scripts and resizing it to 64 x 64. This is the
+    array that should be passed to the compound autoencoder.
+    """
+    data = _compound_training_cwt_data_from_curvature(
+        curvature,
+        cut_points=cut_points,
+        wavelet=wavelet,
+        dt=dt,
+        smooth=smooth,
+    )
+    data["model_image"] = _render_training_contour_to_image(
+        data["s_axis"],
+        data["l_axis"],
+        data["cwt_matrix"],
+        image_size=image_size,
+    )
+    return data
+
+
+def legacy_compound_training_image_from_curvature(
+    curvature: np.ndarray,
+    *,
+    image_size: int = 64,
+    cut_points: int = 501,
+    wavelet: str = "mexh",
+    dt: float = 0.002,
+    contour_levels: int = 8,
+    smooth: bool = True,
+) -> np.ndarray:
+    """Return the exact 64 x 64 rasterised training-style autoencoder input."""
+    return legacy_compound_training_preview_from_curvature(
+        curvature,
+        image_size=image_size,
+        cut_points=cut_points,
+        wavelet=wavelet,
+        dt=dt,
+        contour_levels=contour_levels,
+        smooth=smooth,
+    )["model_image"]
