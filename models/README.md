@@ -22,10 +22,10 @@ Source:
 
 ## Compound-bend model files
 
-The compound-bend workflow uses a separate model/data Zenodo record associated with the companion manuscript. Once published, download the compound autoencoder, extracted encoder, and world latent reference cloud from:
+The compound-bend workflow uses a separate model/data Zenodo record associated with the companion manuscript. Download the compound autoencoder, extracted encoder, and world latent reference cloud from:
 
 ```text
-[MODEL_DATA_ZENODO_DOI]
+https://doi.org/10.5281/zenodo.20845480
 ```
 
 Recommended local filenames:

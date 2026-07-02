@@ -1,7 +1,7 @@
 {
-  "title": "Meander Morphology Classifier",
+  "title": "Meander Morphology Classifier: Curvature-Spectral Meander Bend Classification and Compound-Bend Latent-Space Workflow",
   "upload_type": "software",
-  "description": "Python research-software toolkit and Streamlit graphical user interface for curvature-spectral meander bend classification. The software supports inflection-point single-bend extraction, CWT spectrum generation, compound bend segmentation from curvature spectral energy, and latent-space inference using separately archived trained model files.",
+  "description": "Python research-software toolkit and Streamlit graphical user interface for curvature-based meander bend classification. The software supports inflection-point single-bend extraction, continuous wavelet-transform spectrum generation, compound/complex-bend segmentation from curvature spectral energy, and latent-space inference using separately archived trained model files.",
   "creators": [
     {
       "name": "Lopez Dubon, Sergio",
@@ -15,6 +15,8 @@
     }
   ],
   "license": "MIT",
+  "version": "0.2.0",
+  "publication_date": "2026-07-02",
   "keywords": [
     "meandering rivers",
     "compound meanders",
@@ -22,7 +24,25 @@
     "continuous wavelet transform",
     "autoencoder",
     "geomorphology",
-    "machine learning"
+    "machine learning",
+    "Streamlit",
+    "scientific Python"
   ],
-  "related_identifiers": []
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/sergioald/meander-morphology-classifier",
+      "relation": "isSupplementedBy",
+      "scheme": "url"
+    },
+    {
+      "identifier": "10.5281/zenodo.13913710",
+      "relation": "references",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.5281/zenodo.20845480",
+      "relation": "isSupplementedBy",
+      "scheme": "doi"
+    }
+  ]
 }

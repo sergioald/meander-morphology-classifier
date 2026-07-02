@@ -11,12 +11,11 @@ The public single-bend autoencoder model is hosted on Zenodo:
 
 > Lopez Dubon, S., Sgarabotto, A., & Lanzoni, S. (2024). *Autoencoder for Meander Bends Classification*. Zenodo. https://doi.org/10.5281/zenodo.13913710
 
-The compound-bend autoencoder, extracted encoder, and processed world/real-river latent-space reference cloud are archived separately and should be downloaded into the local `models/` directory. The DOI will be added after publication of the companion manuscript:
+The compound-bend autoencoder, extracted encoder, and processed world/real-river latent-space reference cloud are archived separately and should be downloaded into the local `models/` directory:
 
-```text
-Compound model/data Zenodo DOI: [MODEL_DATA_ZENODO_DOI]
-Software/GUI Zenodo DOI: [SOFTWARE_ZENODO_DOI]
-```
+> Compound model/data Zenodo DOI: https://doi.org/10.5281/zenodo.20845480
+>
+> Software/GUI Zenodo DOI: https://doi.org/10.5281/zenodo.21130610
 
 ## Repository status
 

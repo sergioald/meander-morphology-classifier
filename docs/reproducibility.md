@@ -53,7 +53,7 @@ outputs/example_compound_bends/diagnostics/compound_segmentation_signal.csv
 
 ## 5. Compound latent encoding
 
-Download the compound model/data artefacts from the model Zenodo record and place them in `models/`.
+Download the compound model/data artefacts from the model Zenodo record (https://doi.org/10.5281/zenodo.20845480) and place them in `models/`.
 
 Using the full autoencoder:
 
@@ -100,4 +100,4 @@ python scripts/run_compound_workflow.py \
 
 - Generated `outputs/` files are ignored by Git.
 - Model files in `models/*.h5`, `models/*.keras`, and related binary artefacts are ignored by Git.
-- The exact trained model/data artefacts used in the manuscript should be cited via the separate model/data Zenodo DOI.
+- The exact trained model/data artefacts used in the manuscript should be cited via the separate model/data Zenodo DOI: https://doi.org/10.5281/zenodo.20845480.

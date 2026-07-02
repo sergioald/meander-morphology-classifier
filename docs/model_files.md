@@ -62,7 +62,7 @@ python scripts/encode_compound_bends.py \
 Replace the placeholders below once the records are reserved/published:
 
 ```text
-Software Zenodo DOI: [SOFTWARE_ZENODO_DOI]
-Model/data Zenodo DOI: [MODEL_DATA_ZENODO_DOI]
+Software Zenodo DOI: https://doi.org/10.5281/zenodo.21130610
+Model/data Zenodo DOI: https://doi.org/10.5281/zenodo.20845480
 Paper DOI or preprint DOI: [PAPER_DOI_OR_PREPRINT_DOI]
 ```
