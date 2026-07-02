@@ -27,3 +27,4 @@ abstract: >-
   inflection-point single-bend extraction, CWT spectrum generation, compound
   bend segmentation from curvature spectral energy, and latent-space inference
   using separately archived trained model files.
+# Associated article DOI: https://doi.org/10.1029/2024WR037583

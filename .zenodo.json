@@ -43,6 +43,11 @@
       "identifier": "10.5281/zenodo.20845480",
       "relation": "isSupplementedBy",
       "scheme": "doi"
+    },
+    {
+      "identifier": "10.1029/2024WR037583",
+      "relation": "isSupplementTo",
+      "scheme": "doi"
     }
   ]
 }

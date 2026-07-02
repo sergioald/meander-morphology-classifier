@@ -7,6 +7,10 @@ This repository contains two complementary workflows:
 1. the **single-bend workflow** from Lopez Dubon, Sgarabotto, and Lanzoni (2025), which classifies inflection-bounded meander bends into symmetric, downstream-skewed and upstream-skewed classes;
 2. the **compound/complex-bend workflow** associated with the companion manuscript, which segments compound meander units from curvature spectral energy and encodes their CWT spectra into a two-dimensional latent space.
 
+The single-bend workflow is associated with the peer-reviewed article:
+
+> Associated article DOI: https://doi.org/10.1029/2024WR037583
+
 The public single-bend autoencoder model is hosted on Zenodo:
 
 > Lopez Dubon, S., Sgarabotto, A., & Lanzoni, S. (2024). *Autoencoder for Meander Bends Classification*. Zenodo. https://doi.org/10.5281/zenodo.13913710
@@ -181,7 +185,23 @@ python -m compileall src scripts app
 
 ## Citation
 
-If you use this repository, please cite the associated paper and the archived software release. A `CITATION.cff` file is included for GitHub and Zenodo metadata. The trained compound autoencoder and processed latent reference cloud should be cited separately via the model/data Zenodo record.
+If you use this repository, please cite the associated article and the archived software release.
+
+Associated article:
+
+> https://doi.org/10.1029/2024WR037583
+
+Archived software release:
+
+> https://doi.org/10.5281/zenodo.21130610
+
+Model/data records:
+
+> Single-bend autoencoder: https://doi.org/10.5281/zenodo.13913710
+>
+> Compound-bend autoencoder and latent reference cloud: https://doi.org/10.5281/zenodo.20845480
+
+A `CITATION.cff` file is included for GitHub and Zenodo metadata. The trained compound autoencoder and processed latent reference cloud should be cited separately via the model/data Zenodo record.
 
 ## License
 

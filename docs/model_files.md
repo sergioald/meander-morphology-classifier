@@ -64,5 +64,5 @@ Replace the placeholders below once the records are reserved/published:
 ```text
 Software Zenodo DOI: https://doi.org/10.5281/zenodo.21130610
 Model/data Zenodo DOI: https://doi.org/10.5281/zenodo.20845480
-Paper DOI or preprint DOI: [PAPER_DOI_OR_PREPRINT_DOI]
+Associated article DOI: https://doi.org/10.1029/2024WR037583
 ```
