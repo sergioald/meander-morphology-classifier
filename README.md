@@ -1,5 +1,11 @@
 # Meander Morphology Classifier
 
+[![Tests](https://github.com/sergioald/meander-morphology-classifier/actions/workflows/tests.yml/badge.svg)](https://github.com/sergioald/meander-morphology-classifier/actions/workflows/tests.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Software DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21134675.svg)](https://doi.org/10.5281/zenodo.21134675)
+[![Article DOI](https://img.shields.io/badge/Article-10.1029%2F2024WR037583-blue)](https://doi.org/10.1029/2024WR037583)
+
 Python research-software toolkit and Streamlit GUI for curvature-based meander bend classification using continuous wavelet-transform (CWT) spectra, autoencoder latent spaces and clustering.
 
 This repository contains two complementary workflows:
