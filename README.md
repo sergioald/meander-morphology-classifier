@@ -4,211 +4,181 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Software DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21134675.svg)](https://doi.org/10.5281/zenodo.21134675)
-[![Article DOI](https://img.shields.io/badge/Article-10.1029%2F2024WR037583-blue)](https://doi.org/10.1029/2024WR037583)
+[![Article DOI](https://img.shields.io/badge/article-10.1029%2F2024WR037583-blue)](https://doi.org/10.1029/2024WR037583)
+[![Compound model/data DOI](https://img.shields.io/badge/compound%20model%2Fdata-10.5281%2Fzenodo.20845480-blue)](https://doi.org/10.5281/zenodo.20845480)
+[![Single-bend model DOI](https://img.shields.io/badge/single--bend%20model-10.5281%2Fzenodo.13913710-blue)](https://doi.org/10.5281/zenodo.13913710)
 
-Python research-software toolkit and Streamlit GUI for curvature-based meander bend classification using continuous wavelet-transform (CWT) spectra, autoencoder latent spaces and clustering.
+Local and scriptable workflows for **curvature-spectral meander morphology analysis**, including:
+- **single-bend extraction and optional latent-space clustering**
+- **compound-bend segmentation from reach-scale CWT energy**
+- **compound-spectrum encoding into a 2-D latent space**
+- **a local Streamlit GUI for reproducible exploration and export**
 
-This repository contains two complementary workflows:
+This repository accompanies the manuscript associated with **A data-driven approach to discern the curvature spectral complexity of compound meander bends** and provides reproducible software for both the legacy single-bend workflow and the compound-bend extension.
 
-1. the **single-bend workflow** from Lopez Dubon, Sgarabotto, and Lanzoni (2025), which classifies inflection-bounded meander bends into symmetric, downstream-skewed and upstream-skewed classes;
-2. the **compound/complex-bend workflow** associated with the companion manuscript, which segments compound meander units from curvature spectral energy and encodes their CWT spectra into a two-dimensional latent space.
+---
 
-The single-bend workflow is associated with the peer-reviewed article:
+## Visual overview
 
-> Associated article DOI: https://doi.org/10.1029/2024WR037583
+### Local GUI overview
 
-The public single-bend autoencoder model is hosted on Zenodo:
+<p align="center">
+  <img src="docs/assets/readme_gui_overview.png" alt="Meander Morphology Classifier GUI overview" width="1000">
+</p>
 
-> Lopez Dubon, S., Sgarabotto, A., & Lanzoni, S. (2024). *Autoencoder for Meander Bends Classification*. Zenodo. https://doi.org/10.5281/zenodo.13913710
+### Compound latent-space workflow
 
-The compound-bend autoencoder, extracted encoder, and processed world/real-river latent-space reference cloud are archived separately and should be downloaded into the local `models/` directory:
+<p align="center">
+  <img src="docs/assets/readme_compound_latent_space.png" alt="Compound-bend latent space view in the GUI" width="1000">
+</p>
 
-> Compound model/data Zenodo DOI: https://doi.org/10.5281/zenodo.20845480
->
-> Software/GUI Zenodo DOI: https://doi.org/10.5281/zenodo.21134675
+The GUI is intended for **local use** and exposes the same repository workflows available from the Python API and command-line scripts.
 
-## Repository status
+---
 
-This is a cleaned, GitHub-ready implementation derived from research scripts. It separates reusable methods from plotting and paper-production scripts.
+## What the repository does
 
-Large research data, generated spectra, full river datasets and trained model files are not committed by default. See `docs/model_files.md` and `docs/reproducibility.md`.
+### 1) Single-bend workflow
+- reads a centreline from CSV/TXT/DAT
+- computes curvature-based bend extraction from inflection points
+- supports optional clustering/encoding using the separately archived **single-bend autoencoder**
+- exports summary tables and bend-level diagnostics
+
+### 2) Compound-bend workflow
+- computes a **reach-scale continuous wavelet transform (CWT) energy signal**
+- groups neighbouring lobes into larger compound meander units
+- saves unit summaries and compound spectra
+- optionally encodes compound spectra with the separately archived **compound autoencoder**
+- visualises detected units in a **2-D latent space** against the world/reference meander cloud
+
+---
 
 ## Installation
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-pytest
-```
-
-For GUI use:
+Clone the repository and install it in a fresh environment.
 
 ```bash
-python -m pip install -e ".[gui,deep-learning]"
+git clone https://github.com/sergioald/meander-morphology-classifier.git
+cd meander-morphology-classifier
+pip install -e .
 ```
 
-For model inference without the GUI:
+If you prefer Conda:
 
 ```bash
-python -m pip install -e ".[deep-learning]"
+conda create -n meander-morphology python=3.11
+conda activate meander-morphology
+pip install -e .
 ```
 
-## Workflow A — quick single-bend demo
+---
 
-```bash
-python scripts/extract_single_bends.py \
-  --input examples/example_centerline.csv \
-  --output outputs/example_bends \
-  --width-column width
-```
+## Quick start
 
-## Workflow B — single-bend classification using the Zenodo autoencoder
-
-```bash
-python scripts/download_model.py --output models/
-python scripts/classify_single_bends.py \
-  --spectra outputs/example_bends/spectra.npy \
-  --model models/Autoencoder_Meander_Bend.h5 \
-  --output outputs/example_classification
-```
-
-## Workflow C — use the GUI
+### Launch the local GUI
 
 ```bash
 streamlit run app/streamlit_app.py
 ```
 
-The GUI lets a user upload a river centerline file, preview the planform, compute curvature, detect inflection-point bends, generate CWT spectra and, when the model is available, encode/classify the bends.
-
-## Workflow D — generate synthetic Kinoshita bends
+### Run the test suite
 
 ```bash
-python scripts/generate_synthetic_bends.py --output outputs/synthetic_bends --n-bends 100 --save-png
-python scripts/plot_kinoshita_parameters.py --output outputs/kinoshita_parameters
-```
-
-The synthetic generator is useful for lightweight examples, model checks and future retraining experiments. See `docs/synthetic_data.md`.
-
-## Workflow E — extract compound/complex meander units
-
-```bash
-python scripts/extract_compound_bends.py \
-  --input examples/example_centerline.csv \
-  --output outputs/example_compound_bends \
-  --width-column width
-```
-
-This workflow computes a full-reach curvature CWT, follows the dominant local spectral ridge, integrates ridge-to-trough corridor energy, and uses low-energy valleys to define compound meander-unit boundaries.
-
-Expected outputs:
-
-```text
-outputs/example_compound_bends/compound_bend_summary.csv
-outputs/example_compound_bends/compound_spectra.npy
-outputs/example_compound_bends/compound_spectra/*.png
-outputs/example_compound_bends/diagnostics/compound_segmentation_signal.csv
-```
-
-## Workflow F — encode compound units into latent space
-
-After downloading the compound model files into `models/`, run either the full autoencoder workflow:
-
-```bash
-python scripts/encode_compound_bends.py \
-  --spectra outputs/example_compound_bends/compound_spectra.npy \
-  --summary outputs/example_compound_bends/compound_bend_summary.csv \
-  --model models/compound_autoencoder.h5 \
-  --latent-layer-name Latent_Space \
-  --background-latent models/world_latent_cloud.npy \
-  --output outputs/example_compound_bends/encoded \
-  --plot
-```
-
-or the preferred extracted-encoder workflow:
-
-```bash
-python scripts/encode_compound_bends.py \
-  --spectra outputs/example_compound_bends/compound_spectra.npy \
-  --summary outputs/example_compound_bends/compound_bend_summary.csv \
-  --model models/encoder_only.keras \
-  --model-is-encoder \
-  --background-latent models/world_latent_cloud.npy \
-  --output outputs/example_compound_bends/encoded \
-  --plot
-```
-
-## Workflow G — one-command compound workflow
-
-```bash
-python scripts/run_compound_workflow.py \
-  --input examples/example_centerline.csv \
-  --output outputs/example_compound_full \
-  --width-column width \
-  --model models/compound_autoencoder.h5 \
-  --latent-layer-name Latent_Space \
-  --background-latent models/world_latent_cloud.npy \
-  --plot
-```
-
-This command runs compound extraction, spectrum generation, latent encoding, and diagnostic plotting in one step.
-
-## Input data format
-
-The simplest input is a CSV file with columns:
-
-```text
-x,y,width
-```
-
-- `x`, `y`: centerline coordinates in metres or any consistent length unit.
-- `width`: local or representative channel width. If absent, provide `--width` in the CLI.
-
-## What is included
-
-```text
-src/meander_morphology/   reusable package code
-scripts/                  command-line workflows
-app/                      Streamlit GUI
-examples/                 small synthetic/example data
-docs/                     documentation and reproducibility notes
-tests/                    unit tests
-models/                   local location for downloaded model files
-```
-
-## What is not included
-
-Large research data, generated spectra, full river datasets, `.h5` model files, `.keras` model files and `.npy` latent clouds are not committed by default.
-
-## Development
-
-```bash
-python -m pip install -e ".[dev]"
 pytest
+```
+
+### Compile-check scripts and app
+
+```bash
 python -m compileall src scripts app
 ```
 
+---
+
+## Example script workflows
+
+### Extract compound meander units
+
+```bash
+python scripts/extract_compound_bends.py   --input examples/example_centerline.csv   --output outputs/example_compound_bends   --width-column width
+```
+
+### Encode extracted compound spectra
+
+```bash
+python scripts/encode_compound_bends.py   --spectra outputs/example_compound_bends/compound_spectra.npy   --summary outputs/example_compound_bends/compound_bend_summary.csv   --model models/compound_autoencoder.h5   --output outputs/example_compound_bends/encoded   --latent-layer-name Latent_Space   --background-latent models/world_latent_cloud.npy   --plot
+```
+
+### Run the combined compound workflow
+
+```bash
+python scripts/run_compound_workflow.py   --input examples/example_centerline.csv   --output outputs/example_compound_workflow   --width-column width   --compound-model models/compound_autoencoder.h5   --background-latent models/world_latent_cloud.npy
+```
+
+---
+
+## Model files and Zenodo records
+
+Large model files are **not stored directly in Git** and should remain local after download.
+
+### Software archive
+- **Repository software DOI:** [10.5281/zenodo.21134675](https://doi.org/10.5281/zenodo.21134675)
+
+### Compound-bend model/data archive
+- **Compound model/data DOI:** [10.5281/zenodo.20845480](https://doi.org/10.5281/zenodo.20845480)
+- expected files include the full trained autoencoder, extracted encoder, world/reference latent cloud, metadata, and model card material
+
+### Single-bend legacy model archive
+- **Single-bend model DOI:** [10.5281/zenodo.13913710](https://doi.org/10.5281/zenodo.13913710)
+- this model is optional and primarily used for the legacy single-bend latent-space clustering workflow
+
+The GUI includes convenience buttons for local download/placement of the external model files.
+
+---
+
+## Repository layout
+
+```text
+app/                        Streamlit GUI
+scripts/                    Command-line workflows
+src/meander_morphology/     Core package code
+examples/                   Example centreline input(s)
+tests/                      Pytest suite
+docs/                       Documentation and reproducibility notes
+models/                     Local-only model placeholders / README
+```
+
+---
+
+## Reproducibility and scope
+
+This repository is designed to support:
+- transparent example workflows
+- reproducible local analysis of centreline files
+- export of CSV/NPY outputs for verification and reuse
+- separation of code from large model/data archives via Zenodo
+
+Please note:
+- model performance and interpretation depend on using **consistent preprocessing**
+- the compound autoencoder expects the same style of compound-spectrum inputs used in training
+- local model files downloaded from Zenodo should **not** be committed back into the repository
+
+---
+
 ## Citation
 
-If you use this repository, please cite the associated article and the archived software release.
+If you use this repository, please cite the software record and the associated article.
 
-Associated article:
+### Software
+Lopez Dubon, S., Sgarabotto, A., & Lanzoni, S. (2026). *Meander Morphology Classifier* (Version 0.2.1) [Software]. Zenodo. https://doi.org/10.5281/zenodo.21134675
 
-> https://doi.org/10.1029/2024WR037583
+### Associated article
+Lopez Dubon, S., Sgarabotto, A., & Lanzoni, S. *A data-driven approach to discern the curvature spectral complexity of compound meander bends*. Water Resources Research. https://doi.org/10.1029/2024WR037583
 
-Archived software release:
+A machine-readable citation is also available in [`CITATION.cff`](CITATION.cff).
 
-> https://doi.org/10.5281/zenodo.21134675
-
-Model/data records:
-
-> Single-bend autoencoder: https://doi.org/10.5281/zenodo.13913710
->
-> Compound-bend autoencoder and latent reference cloud: https://doi.org/10.5281/zenodo.20845480
-
-A `CITATION.cff` file is included for GitHub and Zenodo metadata. The trained compound autoencoder and processed latent reference cloud should be cited separately via the model/data Zenodo record.
+---
 
 ## License
 
-Code in this repository is released under the MIT License. The model and third-party datasets retain their own licenses; see `docs/model_files.md` and `docs/data_format.md`.
+This repository is released under the **MIT License**. See [`LICENSE`](LICENSE).
