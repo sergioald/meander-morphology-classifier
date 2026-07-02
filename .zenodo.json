@@ -15,7 +15,7 @@
     }
   ],
   "license": "MIT",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publication_date": "2026-07-02",
   "keywords": [
     "meandering rivers",
@@ -35,6 +35,11 @@
       "scheme": "url"
     },
     {
+      "identifier": "10.1029/2024WR037583",
+      "relation": "isSupplementTo",
+      "scheme": "doi"
+    },
+    {
       "identifier": "10.5281/zenodo.13913710",
       "relation": "references",
       "scheme": "doi"
@@ -42,11 +47,6 @@
     {
       "identifier": "10.5281/zenodo.20845480",
       "relation": "isSupplementedBy",
-      "scheme": "doi"
-    },
-    {
-      "identifier": "10.1029/2024WR037583",
-      "relation": "isSupplementTo",
       "scheme": "doi"
     }
   ]

@@ -1,8 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata from this file and the associated paper."
 title: "Meander Morphology Classifier"
-version: "0.2.0"
-doi: "10.5281/zenodo.21130610"
+version: "0.2.1"
 date-released: "2026-07-02"
 repository-code: "https://github.com/sergioald/meander-morphology-classifier"
 license: "MIT"

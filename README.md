@@ -19,7 +19,7 @@ The compound-bend autoencoder, extracted encoder, and processed world/real-river
 
 > Compound model/data Zenodo DOI: https://doi.org/10.5281/zenodo.20845480
 >
-> Software/GUI Zenodo DOI: https://doi.org/10.5281/zenodo.21130610
+> Software/GUI Zenodo DOI: to be assigned automatically from the GitHub release archive
 
 ## Repository status
 
@@ -193,7 +193,7 @@ Associated article:
 
 Archived software release:
 
-> https://doi.org/10.5281/zenodo.21130610
+> To be assigned automatically from the GitHub release archive.
 
 Model/data records:
 
