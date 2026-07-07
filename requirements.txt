@@ -1,0 +1,6 @@
+# Streamlit Community Cloud / lightweight public demo
+# Installs this repository plus Streamlit. TensorFlow is intentionally omitted
+# so the hosted demo stays lightweight; model-backed workflows are local.
+
+-e .
+streamlit>=1.30
