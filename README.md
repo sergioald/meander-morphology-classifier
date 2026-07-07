@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Software DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21134675.svg)](https://doi.org/10.5281/zenodo.21134675)
 [![Article DOI](https://img.shields.io/badge/Article-10.1029%2F2024WR037583-blue)](https://doi.org/10.1029/2024WR037583)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://meander-morphology-classifier.streamlit.app/)
 
 Local research software for **curvature-based meander morphology analysis**, combining:
 
@@ -96,6 +97,18 @@ Large research datasets, generated spectra and trained model files are intention
   - `world_latent_cloud.npy`
 
 > The software repository is archived separately from trained model files. Model files should remain local and are intentionally not tracked by Git.
+
+---
+
+## Try the live demo
+
+A lightweight public demo is available online:
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://meander-morphology-classifier.streamlit.app/)
+
+The hosted demo uses synthetic/example centreline data and demonstrates compound-bend extraction and CWT-energy segmentation diagnostics without requiring a local install.
+
+The full autoencoder workflows require local Zenodo model files and are documented below.
 
 ---
 
