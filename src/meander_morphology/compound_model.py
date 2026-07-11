@@ -132,7 +132,15 @@ def load_compound_encoder(
         raise FileNotFoundError(model_path)
 
     if model_is_encoder:
-        return tf.keras.models.load_model(model_path, compile=False)
+        try:
+            return tf.keras.models.load_model(model_path, compile=False)
+        except Exception as exc:
+            raise RuntimeError(
+                "Could not load the encoder-only model. If this is a legacy .h5 file "
+                "and the error mentions TFOpLambda or unknown layers, use the pinned "
+                "local environment in environment-legacy-gui.yml. Do not install "
+                "the modern [gui,deep-learning] extras for legacy model inference."
+            ) from exc
 
     try:
         from .model import load_autoencoder

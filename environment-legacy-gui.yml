@@ -1,0 +1,30 @@
+name: meander-gui-tf210
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      # Core scientific stack pinned for TensorFlow/Keras 2.10 compatibility.
+      - numpy==1.23.5
+      - scipy==1.10.1
+      - pandas==1.5.3
+      - matplotlib==3.7.5
+      - scikit-learn==1.2.2
+      - scikit-image==0.20.0
+      - PyWavelets==1.5.0
+      - requests==2.31.0
+      - h5py==3.7.0
+
+      # Legacy model stack for the archived encoder/autoencoder.
+      - tensorflow==2.10.1
+      - keras==2.10.0
+      - protobuf==3.19.6
+
+      # Streamlit version compatible with the protobuf/TensorFlow 2.10 stack.
+      - streamlit==1.18.1
+      - altair==4.2.2
+      - pyarrow==10.0.1
+
+      # Install this repository without asking pip to resolve modern extras.
+      - -e .

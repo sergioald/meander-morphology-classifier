@@ -110,6 +110,56 @@ def _to_npy_download(array: np.ndarray) -> bytes:
     return buffer.getvalue()
 
 
+def _runtime_version_table() -> pd.DataFrame:
+    """Return local runtime versions for GUI/model compatibility checks."""
+    rows = []
+    rows.append({"package": "python", "version": f"{__import__('sys').version_info.major}.{__import__('sys').version_info.minor}.{__import__('sys').version_info.micro}"})
+    rows.append({"package": "streamlit", "version": getattr(st, "__version__", "unknown")})
+    rows.append({"package": "numpy", "version": getattr(np, "__version__", "unknown")})
+    rows.append({"package": "pandas", "version": getattr(pd, "__version__", "unknown")})
+    try:
+        import tensorflow as tf
+        rows.append({"package": "tensorflow", "version": getattr(tf, "__version__", "not installed")})
+        rows.append({"package": "keras", "version": getattr(tf.keras, "__version__", "tf.keras")})
+    except Exception as exc:
+        rows.append({"package": "tensorflow", "version": f"not available: {exc}"})
+    try:
+        import h5py
+        rows.append({"package": "h5py", "version": getattr(h5py, "__version__", "unknown")})
+    except Exception as exc:
+        rows.append({"package": "h5py", "version": f"not available: {exc}"})
+    return pd.DataFrame(rows)
+
+
+def _latent_scale_warning(latent_table: pd.DataFrame, background: np.ndarray | None) -> str | None:
+    """Warn when encoded units are much smaller in scale than the background cloud."""
+    if background is None:
+        return None
+    if not {"latent_1", "latent_2"}.issubset(latent_table.columns):
+        return None
+    detected = latent_table.loc[:, ["latent_1", "latent_2"]].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+    detected = detected[np.isfinite(detected).all(axis=1)]
+    background = np.asarray(background, dtype=float)
+    if detected.size == 0 or background.ndim != 2 or background.shape[1] < 2:
+        return None
+    bg = background[:, :2]
+    bg = bg[np.isfinite(bg).all(axis=1)]
+    if bg.size == 0:
+        return None
+    detected_std = float(np.nanstd(detected))
+    background_std = float(np.nanstd(bg))
+    if not np.isfinite(detected_std) or not np.isfinite(background_std) or background_std <= 0:
+        return None
+    ratio = detected_std / background_std
+    if ratio < 0.01:
+        return (
+            "Encoded latent coordinates are less than 1% of the background-cloud scale. "
+            "Do not trust the latent interpretation until the model file, encoder setting, "
+            "background cloud and TensorFlow/Keras environment have been checked."
+        )
+    return None
+
+
 def read_uploaded_centerline(
     uploaded_file,
     *,
@@ -403,36 +453,100 @@ def plot_compound_latent(
     selected_id: int | None = None,
     *,
     show_unit_labels: bool = True,
+    zoom_to_detected: bool = True,
 ):
-    fig, ax = plt.subplots(figsize=(3.6, 3.0))
+    # Plot compound-bend latent coordinates. When a large background cloud is
+    # shown, detected units can be visually compressed near the origin. The
+    # zoom option keeps coordinates unchanged but sets axis limits around the
+    # detected units so all encoded units are visible.
+    fig, ax = plt.subplots(figsize=(5.8, 4.6))
+
     if background_latent is not None and background_latent.ndim == 2 and background_latent.shape[1] >= 2:
         ax.scatter(
             background_latent[:, 0],
             background_latent[:, 1],
             s=1.2,
-            alpha=0.08,
+            alpha=0.06,
             label="reference meander cloud",
+            zorder=1,
         )
+
+    detected_xy = np.empty((0, 2), dtype=float)
+    valid_rows = np.asarray([], dtype=int)
+
     if {"latent_1", "latent_2"}.issubset(table.columns):
-        ax.scatter(table["latent_1"], table["latent_2"], s=28, label="detected meander units")
-        if show_unit_labels:
-            for _, row in table.iterrows():
-                ax.annotate(
-                    str(int(row.get("unit_id", 0))),
-                    (row["latent_1"], row["latent_2"]),
-                    fontsize=7,
-                    xytext=(3, 3),
-                    textcoords="offset points",
+        latent_numeric = table.loc[:, ["latent_1", "latent_2"]].apply(pd.to_numeric, errors="coerce")
+        latent_xy = latent_numeric.to_numpy(dtype=float)
+        valid_mask = np.isfinite(latent_xy).all(axis=1)
+        valid_rows = np.flatnonzero(valid_mask)
+        detected_xy = latent_xy[valid_mask]
+
+        if detected_xy.size:
+            ax.scatter(
+                detected_xy[:, 0],
+                detected_xy[:, 1],
+                c=np.arange(detected_xy.shape[0]),
+                cmap="tab20",
+                s=58,
+                alpha=0.92,
+                edgecolors="black",
+                linewidths=0.35,
+                label=f"detected meander units (n={detected_xy.shape[0]})",
+                zorder=3,
+            )
+
+            if show_unit_labels:
+                for local_idx, row_idx in enumerate(valid_rows):
+                    row = table.iloc[int(row_idx)]
+                    label = str(int(row.get("unit_id", row_idx)))
+                    ax.annotate(
+                        label,
+                        (detected_xy[local_idx, 0], detected_xy[local_idx, 1]),
+                        fontsize=7,
+                        xytext=(4, 4),
+                        textcoords="offset points",
+                        zorder=5,
+                    )
+
+        if selected_id is not None and 0 <= int(selected_id) < len(table):
+            selected_row = table.iloc[int(selected_id)]
+            sx = pd.to_numeric(selected_row.get("latent_1"), errors="coerce")
+            sy = pd.to_numeric(selected_row.get("latent_2"), errors="coerce")
+            if np.isfinite(sx) and np.isfinite(sy):
+                ax.scatter(
+                    [float(sx)],
+                    [float(sy)],
+                    marker="x",
+                    s=150,
+                    linewidths=2.6,
+                    label="selected unit",
+                    zorder=6,
                 )
-        if selected_id is not None and selected_id < len(table):
-            row = table.iloc[selected_id]
-            ax.scatter([row["latent_1"]], [row["latent_2"]], marker="x", s=75, linewidths=2, label="selected unit")
-    ax.set_xlabel("latent_1", fontsize=8)
-    ax.set_ylabel("latent_2", fontsize=8)
-    ax.set_title("Compound-bend latent space", fontsize=10)
+
+    if zoom_to_detected and detected_xy.size:
+        def padded_limits(values: np.ndarray) -> tuple[float, float]:
+            lo = float(np.nanmin(values))
+            hi = float(np.nanmax(values))
+            centre = 0.5 * (lo + hi)
+            span = hi - lo
+            if not np.isfinite(span) or span <= 0:
+                span = max(abs(centre) * 0.10, 1.0e-4)
+            pad = max(0.25 * span, 1.0e-5)
+            return lo - pad, hi + pad
+
+        ax.set_xlim(*padded_limits(detected_xy[:, 0]))
+        ax.set_ylim(*padded_limits(detected_xy[:, 1]))
+
+    ax.set_xlabel("latent_1", fontsize=9)
+    ax.set_ylabel("latent_2", fontsize=9)
+    title = "Compound-bend latent space"
+    if zoom_to_detected:
+        title += " (zoomed to detected units)"
+    ax.set_title(title, fontsize=11)
     ax.tick_params(labelsize=8)
     ax.legend(loc="best", fontsize=7)
-    fig.tight_layout(pad=0.5)
+    ax.grid(alpha=0.18, linewidth=0.5)
+    fig.tight_layout(pad=0.55)
     return fig
 
 
@@ -659,7 +773,7 @@ with single_tab:
                         st.code(traceback.format_exc())
 
         st.write(f"Detected **{len(bends)}** candidate single bends.")
-        st.dataframe(metadata, width="stretch")
+        st.dataframe(metadata, use_container_width=True)
         if not metadata.empty:
             st.download_button("Download single-bend summary CSV", _to_csv_download(metadata), "single_bend_summary.csv", "text/csv")
         if bends:
@@ -684,7 +798,7 @@ with single_tab:
                 with lat_col:
                     st.pyplot(plot_single_latent_space(latent, cluster_labels, bend_id), clear_figure=True)
                 with sum_col:
-                    st.dataframe(cluster_summary, width="content")
+                    st.dataframe(cluster_summary)
             elif use_autoencoder:
                 st.info("No latent-space plot is available yet. Check that the single-bend model path exists and that the number of bends is at least the requested number of clusters.")
 
@@ -735,7 +849,7 @@ with compound_tab:
                 f"Detected **{len(units)}** CWT-energy meander units; "
                 f"**{sum(unit.is_compound for unit in units)}** are compound/complex."
             )
-            st.dataframe(unit_table, width="stretch")
+            st.dataframe(unit_table, use_container_width=True)
             if not unit_table.empty:
                 st.download_button("Download compound unit summary CSV", _to_csv_download(unit_table), "compound_bend_summary.csv", "text/csv")
 
@@ -788,6 +902,19 @@ with compound_tab:
 with latent_tab:
     st.subheader("Compound latent space")
     st.caption("Encode compound spectra with the separately archived model files.")
+    st.warning(
+        "This tab loads archived TensorFlow/Keras model files. For local model-backed "
+        "inference, use the pinned environment in environment-legacy-gui.yml. If loading "
+        "fails with TFOpLambda, or if latent coordinates collapse near zero while the "
+        "background cloud spans much larger values, the environment/model combination "
+        "is not validated."
+    )
+    with st.expander("Runtime compatibility check"):
+        st.dataframe(_runtime_version_table(), use_container_width=True)
+        st.caption(
+            "Expected local legacy stack: Python 3.10, TensorFlow 2.10.1, Keras 2.10.0, "
+            "NumPy 1.23.5, Streamlit 1.18.1."
+        )
     spectra = st.session_state.get("compound_spectra")
     unit_table = st.session_state.get("compound_unit_table")
     if spectra is None or unit_table is None:
@@ -840,7 +967,7 @@ with latent_tab:
 
         latent_table = st.session_state.get("compound_latent_table")
         if latent_table is not None:
-            st.dataframe(latent_table, width="stretch")
+            st.dataframe(latent_table, use_container_width=True)
             st.download_button("Download compound latent diagnostics CSV", _to_csv_download(latent_table), "compound_latent_diagnostics.csv", "text/csv")
             background = None
             background_state = st.session_state.get("compound_background_path", "")
@@ -850,10 +977,40 @@ with latent_tab:
                 except Exception:
                     background = None
             selected = st.slider("Highlight latent unit", 0, len(latent_table) - 1, 0, key="latent_selected_unit")
-            show_compound_latent_labels = st.checkbox("Show unit numbers in latent-space plot", value=False)
-            lat_col, _ = st.columns([0.56, 0.44])
+            plot_ctrl_1, plot_ctrl_2 = st.columns(2)
+            with plot_ctrl_1:
+                show_compound_latent_labels = st.checkbox("Show unit numbers in latent-space plot", value=False)
+            with plot_ctrl_2:
+                zoom_compound_latent = st.checkbox(
+                    "Zoom to detected units",
+                    value=True,
+                    help=(
+                        "Keeps the latent coordinates unchanged, but zooms the axis limits around "
+                        "the detected units. This makes all units visible when they occupy a very "
+                        "small part of the full reference-cloud latent space."
+                    ),
+                )
+            lat_col, _ = st.columns([0.64, 0.36])
+            scale_warning = _latent_scale_warning(latent_table, background)
+            if scale_warning:
+                st.error(scale_warning)
             with lat_col:
-                st.pyplot(plot_compound_latent(latent_table, background_latent=background, selected_id=selected, show_unit_labels=show_compound_latent_labels), clear_figure=True)
+                st.pyplot(
+                    plot_compound_latent(
+                        latent_table,
+                        background_latent=background,
+                        selected_id=selected,
+                        show_unit_labels=show_compound_latent_labels,
+                        zoom_to_detected=zoom_compound_latent,
+                    ),
+                    clear_figure=True,
+                )
+            if zoom_compound_latent:
+                st.caption(
+                    "The plot is zoomed to the detected units so overlapping or tightly clustered "
+                    "encoded units are visible. Untick this option to see them in the full "
+                    "reference-cloud coordinate frame."
+                )
 
 with reproducibility_tab:
     st.subheader("Reproducibility and Zenodo files")

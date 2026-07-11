@@ -38,6 +38,18 @@ dependencies = [
 deep-learning = ["tensorflow>=2.13"]
 wavelets = ["PyWavelets>=1.5"]
 gui = ["streamlit>=1.30"]
+legacy-gui = [
+  "streamlit==1.18.1",
+  "altair==4.2.2",
+  "pyarrow==10.0.1",
+]
+legacy-deep-learning = [
+  "tensorflow==2.10.1",
+  "keras==2.10.0",
+  "numpy==1.23.5",
+  "protobuf==3.19.6",
+  "h5py==3.7.0",
+]
 dev = ["pytest>=7.4", "ruff>=0.5"]
 
 [tool.setuptools.packages.find]
